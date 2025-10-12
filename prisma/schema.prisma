@@ -1,0 +1,264 @@
+// Prisma Schema for Intellicode Backend
+// This schema defines the database structure for Supabase PostgreSQL
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+enum UserRole {
+  admin
+  teacher
+  student
+}
+
+enum ExamQuestionType {
+  multiple_choice
+  enumeration
+  identification
+  true_false
+}
+
+enum ActivityType {
+  code_sandbox
+  quiz_form
+}
+
+enum DifficultyLevel {
+  easy
+  medium
+  hard
+}
+
+enum CodeSandboxLanguage {
+  java
+  python
+  c
+}
+
+enum CourseStatus {
+  waiting_for_approval
+  approved
+  rejected
+}
+
+// Enrollment model for student-course relationships
+model Enrollment {
+  id String @id @db.Uuid
+  student_id String @db.Uuid
+  course_id String @db.Uuid
+  enrolled_at DateTime @default(now())
+  status EnrollmentStatus @default(active)
+  
+  student User @relation("StudentEnrollments", fields: [student_id], references: [id])
+  course Course @relation("CourseEnrollments", fields: [course_id], references: [id])
+  
+  @@unique([student_id, course_id])
+  @@index([student_id])
+  @@index([course_id])
+  @@index([status])
+  @@map("enrollments")
+}
+
+// Lesson model for course content
+model Lesson {
+  id String @id @db.Uuid
+  course_id String @db.Uuid
+  title String
+  description String?
+  content String? // Rich text content or markdown
+  lesson_type LessonType @default(content)
+  order_index Int // For ordering lessons within a course
+  is_published Boolean @default(false)
+  created_at DateTime @default(now())
+  updated_at DateTime @updatedAt
+  
+  course Course @relation("CourseLessons", fields: [course_id], references: [id])
+  activities Activity[] @relation("LessonActivities")
+  
+  @@index([course_id])
+  @@index([order_index])
+  @@index([is_published])
+  @@map("lessons")
+}
+
+// Activity model for interactive content
+model Activity {
+  id String @id @db.Uuid
+  lesson_id String @db.Uuid
+  title String
+  description String?
+  activity_type ActivityType
+  difficulty DifficultyLevel @default(easy)
+  points Int @default(0)
+  time_limit Int? // in minutes
+  is_published Boolean @default(false)
+  created_at DateTime @default(now())
+  updated_at DateTime @updatedAt
+  
+  lesson Lesson @relation("LessonActivities", fields: [lesson_id], references: [id])
+  questions Question[] @relation("ActivityQuestions")
+  submissions Submission[] @relation("ActivitySubmissions")
+  
+  @@index([lesson_id])
+  @@index([activity_type])
+  @@index([difficulty])
+  @@index([is_published])
+  @@map("activities")
+}
+
+// Question model for quiz/exam questions
+model Question {
+  id String @id @db.Uuid
+  activity_id String @db.Uuid
+  question_text String
+  question_type ExamQuestionType
+  points Int @default(1)
+  order_index Int
+  is_required Boolean @default(true)
+  created_at DateTime @default(now())
+  updated_at DateTime @updatedAt
+  
+  activity Activity @relation("ActivityQuestions", fields: [activity_id], references: [id])
+  options QuestionOption[] @relation("QuestionOptions")
+  answers Answer[] @relation("QuestionAnswers")
+  
+  @@index([activity_id])
+  @@index([question_type])
+  @@index([order_index])
+  @@map("questions")
+}
+
+// Question options for multiple choice questions
+model QuestionOption {
+  id String @id @db.Uuid
+  question_id String @db.Uuid
+  option_text String
+  is_correct Boolean @default(false)
+  order_index Int
+  created_at DateTime @default(now())
+  
+  question Question @relation("QuestionOptions", fields: [question_id], references: [id])
+  
+  @@index([question_id])
+  @@index([order_index])
+  @@map("question_options")
+}
+
+// Student submissions for activities
+model Submission {
+  id String @id @db.Uuid
+  activity_id String @db.Uuid
+  student_id String @db.Uuid
+  score Int @default(0)
+  max_score Int
+  submitted_at DateTime @default(now())
+  status SubmissionStatus @default(submitted)
+  
+  activity Activity @relation("ActivitySubmissions", fields: [activity_id], references: [id])
+  student User @relation("StudentSubmissions", fields: [student_id], references: [id])
+  answers Answer[] @relation("SubmissionAnswers")
+  
+  @@index([activity_id])
+  @@index([student_id])
+  @@index([submitted_at])
+  @@index([status])
+  @@map("submissions")
+}
+
+// Student answers to questions
+model Answer {
+  id String @id @db.Uuid
+  submission_id String @db.Uuid
+  question_id String @db.Uuid
+  answer_text String?
+  is_correct Boolean @default(false)
+  points_earned Int @default(0)
+  created_at DateTime @default(now())
+  
+  submission Submission @relation("SubmissionAnswers", fields: [submission_id], references: [id])
+  question Question @relation("QuestionAnswers", fields: [question_id], references: [id])
+  
+  @@index([submission_id])
+  @@index([question_id])
+  @@map("answers")
+}
+
+// Add new enums
+enum EnrollmentStatus {
+  active
+  completed
+  dropped
+  suspended
+}
+
+enum LessonType {
+  content
+  video
+  reading
+  assignment
+}
+
+enum SubmissionStatus {
+  draft
+  submitted
+  graded
+  returned
+}
+
+model User {
+  id              String    @id @db.Uuid
+  email           String    @unique
+  first_name      String
+  middle_name     String?
+  last_name       String
+  role            UserRole  @default(student)
+  student_number  String?
+  section         String?
+  profile_picture String?
+  created_at      DateTime  @default(now())
+  updated_at      DateTime  @updatedAt
+
+  // Updated relationships
+  courses Course[] @relation("InstructorCourses")
+  enrollments Enrollment[] @relation("StudentEnrollments")
+  submissions Submission[] @relation("StudentSubmissions")
+  
+  @@index([email])
+  @@index([role])
+  @@index([student_number])
+  @@map("users")
+}
+
+model Course {
+  id String @id @db.Uuid
+  title String
+  description String
+  category String
+  thumbnail String
+  created_at DateTime @default(now())
+  updated_at DateTime @updatedAt
+  course_invite_code String
+  instructor_id String? @db.Uuid
+  status CourseStatus @default(waiting_for_approval)
+
+  // Updated relationships
+  instructor User? @relation("InstructorCourses", fields: [instructor_id], references: [id])
+  enrollments Enrollment[] @relation("CourseEnrollments")
+  lessons Lesson[] @relation("CourseLessons")
+  
+  @@map("courses")
+  @@index([title])
+  @@index([category])
+  @@index([instructor_id])
+  @@index([status])
+}
+
+
+
+
