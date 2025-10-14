@@ -33,6 +33,35 @@ import {
   ApproveCourseDto, 
   PendingCoursesQueryDto 
 } from './dto/admin.dto';
+import { 
+  FileUploadDto, 
+  FileUploadResponseDto, 
+  FileQueryDto,
+  PaginatedFilesResponseDto
+} from './dto/file-upload.dto';
+import { FileStorageService } from './file-storage.service';
+import { ModuleService } from './module.service';
+import { 
+  CreateModuleDto, 
+  UpdateModuleDto, 
+  ModuleResponseDto, 
+  ModuleQueryDto, 
+  PaginatedModulesResponseDto,
+  BulkCreateModulesDto 
+} from './dto/module.dto';
+import { AssignmentService } from './assignment.service';
+import { 
+  CreateAssignmentDto, 
+  UpdateAssignmentDto, 
+  AssignmentResponseDto, 
+  AssignmentQueryDto, 
+  PaginatedAssignmentsResponseDto,
+  AssignmentSubmissionDto,
+  AssignmentSubmissionResponseDto,
+  StudentScoreDto,
+  ManualGradingDto,
+  AssignmentGradingResponseDto
+} from './dto/assignment.dto';
 
 @Controller('course')
 export class CourseController {
@@ -40,7 +69,10 @@ export class CourseController {
     private readonly courseService: CourseService,
     private readonly enrollmentService: EnrollmentService,
     private readonly lessonService: LessonService,
-    private readonly adminService: AdminService
+    private readonly adminService: AdminService,
+    private readonly fileStorageService: FileStorageService,
+    private readonly moduleService: ModuleService,
+    private readonly assignmentService: AssignmentService
   ) {}
 
   @Roles('teacher')
@@ -102,6 +134,31 @@ export class CourseController {
     return await this.courseService.findAllByInstructor(query, user.id);
   }
 
+  @Get('my-enrollments')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('student')
+  @ApiBearerAuth('JWT-auth')
+  @ApiOperation({ summary: 'Get my course enrollments' })
+  @ApiResponse({ status: HttpStatus.OK, description: 'Enrollments retrieved successfully', type: PaginatedEnrollmentsResponseDto })
+  @ApiQuery({ name: 'offset', required: false, type: Number, description: 'Number of records to skip' })
+  @ApiQuery({ name: 'limit', required: false, type: Number, description: 'Number of records to take' })
+  @ApiQuery({ name: 'status', required: false, type: String, description: 'Filter by enrollment status' })
+  async getMyEnrollments(@Query() query: StudentEnrollmentsQueryDto, @CurrentUser() user: RequestUser) {
+    return await this.enrollmentService.getStudentEnrollments(query, user.id);
+  }
+
+  @Get('enrolled/:courseId')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('student')
+  @ApiBearerAuth('JWT-auth')
+  @ApiOperation({ summary: 'Get enrolled course details with lessons' })
+  @ApiParam({ name: 'courseId', description: 'Course ID' })
+  @ApiResponse({ status: HttpStatus.OK, description: 'Course details retrieved successfully' })
+  @ApiResponse({ status: HttpStatus.NOT_FOUND, description: 'Course not found or not enrolled' })
+  async getEnrolledCourseDetails(@Param('courseId') courseId: string, @CurrentUser() user: RequestUser) {
+    return await this.enrollmentService.getEnrolledCourseDetails(courseId, user.id);
+  }
+
   @Get(':id')
   @ApiOperation({ summary: 'Get a course by ID' })
   @ApiParam({ name: 'id', description: 'Course ID' })
@@ -151,69 +208,46 @@ export class CourseController {
     return await this.enrollmentService.enrollInCourse(enrollDto, user.id);
   }
 
-  @Get('my-enrollments')
-  @UseGuards(JwtAuthGuard)
-  @ApiBearerAuth('JWT-auth')
-  @ApiOperation({ summary: 'Get my course enrollments' })
-  @ApiResponse({ status: HttpStatus.OK, description: 'Enrollments retrieved successfully', type: PaginatedEnrollmentsResponseDto })
-  @ApiQuery({ name: 'offset', required: false, type: Number, description: 'Number of records to skip' })
-  @ApiQuery({ name: 'limit', required: false, type: Number, description: 'Number of records to take' })
-  @ApiQuery({ name: 'status', required: false, type: String, description: 'Filter by enrollment status' })
-  async getMyEnrollments(@Query() query: StudentEnrollmentsQueryDto, @CurrentUser() user: RequestUser) {
-    return await this.enrollmentService.getStudentEnrollments(query, user.id);
-  }
-
-  @Get('enrolled/:courseId')
-  @UseGuards(JwtAuthGuard)
-  @ApiBearerAuth('JWT-auth')
-  @ApiOperation({ summary: 'Get enrolled course details with lessons' })
-  @ApiParam({ name: 'courseId', description: 'Course ID' })
-  @ApiResponse({ status: HttpStatus.OK, description: 'Course details retrieved successfully' })
-  @ApiResponse({ status: HttpStatus.NOT_FOUND, description: 'Course not found or not enrolled' })
-  async getEnrolledCourseDetails(@Param('courseId') courseId: string, @CurrentUser() user: RequestUser) {
-    return await this.enrollmentService.getEnrolledCourseDetails(courseId, user.id);
-  }
-
   // Lesson management endpoints (for instructors)
   @Roles('teacher')
   @UseGuards(JwtAuthGuard, RolesGuard)
   @ApiBearerAuth('JWT-auth')
-  @Post(':courseId/lessons')
-  @ApiOperation({ summary: 'Create a lesson in a course' })
-  @ApiParam({ name: 'courseId', description: 'Course ID' })
+  @Post('modules/:moduleId/lessons')
+  @ApiOperation({ summary: 'Create a lesson in a module' })
+  @ApiParam({ name: 'moduleId', description: 'Module ID' })
   @ApiResponse({ status: HttpStatus.CREATED, description: 'Lesson created successfully', type: LessonResponseDto })
   async createLesson(
-    @Param('courseId') courseId: string,
+    @Param('moduleId') moduleId: string,
     @Body() createLessonDto: CreateLessonDto,
     @CurrentUser() user: RequestUser
   ) {
-    return await this.lessonService.createLesson(createLessonDto, courseId, user.id);
+    return await this.lessonService.createLesson(createLessonDto, moduleId, user.id);
   }
 
   @Roles('teacher')
   @UseGuards(JwtAuthGuard, RolesGuard)
   @ApiBearerAuth('JWT-auth')
-  @Post(':courseId/lessons/bulk')
-  @ApiOperation({ summary: 'Bulk create lessons in a course' })
-  @ApiParam({ name: 'courseId', description: 'Course ID' })
+  @Post('modules/:moduleId/lessons/bulk')
+  @ApiOperation({ summary: 'Bulk create lessons in a module' })
+  @ApiParam({ name: 'moduleId', description: 'Module ID' })
   @ApiResponse({ status: HttpStatus.CREATED, description: 'Lessons created successfully', type: [LessonResponseDto] })
   async bulkCreateLessons(
-    @Param('courseId') courseId: string,
-    @Body() bulkCreateDto: BulkCreateLessonsDto,
+    @Param('moduleId') moduleId: string,
+    @Body() bulkCreateDto: Omit<BulkCreateLessonsDto, 'module_id'>,
     @CurrentUser() user: RequestUser
   ) {
-    return await this.lessonService.bulkCreateLessons({ ...bulkCreateDto, course_id: courseId }, user.id);
+    return await this.lessonService.bulkCreateLessons({ ...bulkCreateDto, module_id: moduleId }, user.id);
   }
 
   @Roles('teacher')
   @UseGuards(JwtAuthGuard, RolesGuard)
   @ApiBearerAuth('JWT-auth')
-  @Get(':courseId/lessons')
-  @ApiOperation({ summary: 'Get all lessons for a course' })
-  @ApiParam({ name: 'courseId', description: 'Course ID' })
+  @Get('modules/:moduleId/lessons')
+  @ApiOperation({ summary: 'Get all lessons for a module' })
+  @ApiParam({ name: 'moduleId', description: 'Module ID' })
   @ApiResponse({ status: HttpStatus.OK, description: 'Lessons retrieved successfully' })
-  async getCourseLessons(@Param('courseId') courseId: string, @CurrentUser() user: RequestUser) {
-    return await this.lessonService.getCourseLessons(courseId, user.id);
+  async getModuleLessons(@Param('moduleId') moduleId: string, @CurrentUser() user: RequestUser) {
+    return await this.lessonService.getModuleLessons(moduleId, user.id);
   }
 
   // Admin endpoints
@@ -243,5 +277,382 @@ export class CourseController {
     @CurrentUser() user: RequestUser
   ) {
     return await this.adminService.approveCourse(courseId, approveDto, user.id);
+  }
+
+  // File Storage Endpoints
+  @Post('files/upload')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('teacher')
+  @ApiBearerAuth('JWT-auth')
+  @ApiOperation({ summary: 'Upload file to course' })
+  @ApiConsumes('multipart/form-data')
+  @ApiResponse({ status: HttpStatus.CREATED, description: 'File uploaded successfully', type: FileUploadResponseDto })
+  @UseInterceptors(FileInterceptor('file'))
+  async uploadFile(
+    @UploadedFile() file: Express.Multer.File,
+    @Body() uploadDto: FileUploadDto,
+    @CurrentUser() user: RequestUser
+  ) {
+    return await this.fileStorageService.uploadFile(file, uploadDto);
+  }
+
+  @Get('files')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('teacher', 'student')
+  @ApiBearerAuth('JWT-auth')
+  @ApiOperation({ summary: 'Get files with filters' })
+  @ApiResponse({ status: HttpStatus.OK, description: 'Files retrieved successfully', type: PaginatedFilesResponseDto })
+  @ApiQuery({ name: 'file_type', required: false, enum: ['image', 'video', 'pdf', 'document'], description: 'Filter by file type' })
+  @ApiQuery({ name: 'category', required: false, enum: ['thumbnail', 'lesson_content', 'assignment', 'resource'], description: 'Filter by category' })
+  @ApiQuery({ name: 'course_id', required: false, type: String, description: 'Filter by course ID' })
+  @ApiQuery({ name: 'lesson_id', required: false, type: String, description: 'Filter by lesson ID' })
+  @ApiQuery({ name: 'offset', required: false, type: Number, description: 'Number of records to skip' })
+  @ApiQuery({ name: 'limit', required: false, type: Number, description: 'Number of records to take' })
+  async getFiles(@Query() query: FileQueryDto) {
+    return await this.fileStorageService.getFiles(query);
+  }
+
+  @Get('files/:id')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('teacher', 'student')
+  @ApiBearerAuth('JWT-auth')
+  @ApiOperation({ summary: 'Get file by ID' })
+  @ApiParam({ name: 'id', description: 'File ID' })
+  @ApiResponse({ status: HttpStatus.OK, description: 'File retrieved successfully', type: FileUploadResponseDto })
+  @ApiResponse({ status: HttpStatus.NOT_FOUND, description: 'File not found' })
+  async getFileById(@Param('id') id: string) {
+    return await this.fileStorageService.getFileById(id);
+  }
+
+  @Delete('files/:id')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('teacher')
+  @ApiBearerAuth('JWT-auth')
+  @ApiOperation({ summary: 'Delete file' })
+  @ApiParam({ name: 'id', description: 'File ID' })
+  @ApiResponse({ status: HttpStatus.NO_CONTENT, description: 'File deleted successfully' })
+  @ApiResponse({ status: HttpStatus.NOT_FOUND, description: 'File not found' })
+  @HttpCode(HttpStatus.NO_CONTENT)
+  async deleteFile(@Param('id') id: string) {
+    await this.fileStorageService.deleteFile(id);
+  }
+
+  @Get(':courseId/files')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('teacher', 'student')
+  @ApiBearerAuth('JWT-auth')
+  @ApiOperation({ summary: 'Get all files for a course' })
+  @ApiParam({ name: 'courseId', description: 'Course ID' })
+  @ApiResponse({ status: HttpStatus.OK, description: 'Course files retrieved successfully', type: [FileUploadResponseDto] })
+  async getCourseFiles(@Param('courseId') courseId: string) {
+    return await this.fileStorageService.getCourseFiles(courseId);
+  }
+
+  @Get('lessons/:lessonId/files')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('teacher', 'student')
+  @ApiBearerAuth('JWT-auth')
+  @ApiOperation({ summary: 'Get all files for a lesson' })
+  @ApiParam({ name: 'lessonId', description: 'Lesson ID' })
+  @ApiResponse({ status: HttpStatus.OK, description: 'Lesson files retrieved successfully', type: [FileUploadResponseDto] })
+  async getLessonFiles(@Param('lessonId') lessonId: string) {
+    return await this.fileStorageService.getLessonFiles(lessonId);
+  }
+
+  // Module endpoints
+  @Post(':courseId/modules')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('teacher')
+  @ApiBearerAuth('JWT-auth')
+  @ApiOperation({ summary: 'Create a new module' })
+  @ApiParam({ name: 'courseId', description: 'Course ID' })
+  @ApiResponse({ status: HttpStatus.CREATED, description: 'Module created successfully', type: ModuleResponseDto })
+  @ApiResponse({ status: HttpStatus.BAD_REQUEST, description: 'Invalid course ID or module data' })
+  @ApiResponse({ status: HttpStatus.NOT_FOUND, description: 'Course not found' })
+  @HttpCode(HttpStatus.CREATED)
+  async createModule(
+    @Param('courseId') courseId: string,
+    @Body() createModuleDto: Omit<CreateModuleDto, 'course_id'>,
+    @CurrentUser() user: RequestUser
+  ) {
+    return await this.moduleService.createModule({ ...createModuleDto, course_id: courseId }, user.id);
+  }
+
+  @Get(':courseId/modules')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('teacher', 'student')
+  @ApiBearerAuth('JWT-auth')
+  @ApiOperation({ summary: 'Get all modules for a course' })
+  @ApiParam({ name: 'courseId', description: 'Course ID' })
+  @ApiQuery({ name: 'offset', required: false, type: Number, description: 'Number of records to skip' })
+  @ApiQuery({ name: 'limit', required: false, type: Number, description: 'Number of records to take' })
+  @ApiQuery({ name: 'is_published', required: false, type: Boolean, description: 'Filter by published status' })
+  @ApiQuery({ name: 'search', required: false, type: String, description: 'Search by title' })
+  @ApiResponse({ status: HttpStatus.OK, description: 'Modules retrieved successfully', type: PaginatedModulesResponseDto })
+  @ApiResponse({ status: HttpStatus.NOT_FOUND, description: 'Course not found' })
+  async getCourseModules(
+    @Param('courseId') courseId: string,
+    @Query() query: ModuleQueryDto,
+    @CurrentUser() user: RequestUser
+  ) {
+    return await this.moduleService.getCourseModules(courseId, query);
+  }
+
+  @Get('modules/:moduleId')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('teacher', 'student')
+  @ApiBearerAuth('JWT-auth')
+  @ApiOperation({ summary: 'Get module by ID' })
+  @ApiParam({ name: 'moduleId', description: 'Module ID' })
+  @ApiResponse({ status: HttpStatus.OK, description: 'Module retrieved successfully', type: ModuleResponseDto })
+  @ApiResponse({ status: HttpStatus.NOT_FOUND, description: 'Module not found' })
+  async getModuleById(
+    @Param('moduleId') moduleId: string,
+    @CurrentUser() user: RequestUser
+  ) {
+    return await this.moduleService.getModuleById(moduleId, user.role === 'teacher' ? user.id : undefined);
+  }
+
+  @Patch('modules/:moduleId')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('teacher')
+  @ApiBearerAuth('JWT-auth')
+  @ApiOperation({ summary: 'Update module' })
+  @ApiParam({ name: 'moduleId', description: 'Module ID' })
+  @ApiResponse({ status: HttpStatus.OK, description: 'Module updated successfully', type: ModuleResponseDto })
+  @ApiResponse({ status: HttpStatus.NOT_FOUND, description: 'Module not found' })
+  @ApiResponse({ status: HttpStatus.FORBIDDEN, description: 'You do not have permission to update this module' })
+  async updateModule(
+    @Param('moduleId') moduleId: string,
+    @Body() updateModuleDto: UpdateModuleDto,
+    @CurrentUser() user: RequestUser
+  ) {
+    return await this.moduleService.updateModule(moduleId, updateModuleDto, user.id);
+  }
+
+  @Delete('modules/:moduleId')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('teacher')
+  @ApiBearerAuth('JWT-auth')
+  @ApiOperation({ summary: 'Delete module' })
+  @ApiParam({ name: 'moduleId', description: 'Module ID' })
+  @ApiResponse({ status: HttpStatus.NO_CONTENT, description: 'Module deleted successfully' })
+  @ApiResponse({ status: HttpStatus.NOT_FOUND, description: 'Module not found' })
+  @ApiResponse({ status: HttpStatus.BAD_REQUEST, description: 'Cannot delete module with lessons or files' })
+  @HttpCode(HttpStatus.NO_CONTENT)
+  async deleteModule(
+    @Param('moduleId') moduleId: string,
+    @CurrentUser() user: RequestUser
+  ) {
+    await this.moduleService.deleteModule(moduleId, user.id);
+  }
+
+  @Post(':courseId/modules/bulk')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('teacher')
+  @ApiBearerAuth('JWT-auth')
+  @ApiOperation({ summary: 'Create multiple modules at once' })
+  @ApiParam({ name: 'courseId', description: 'Course ID' })
+  @ApiResponse({ status: HttpStatus.CREATED, description: 'Modules created successfully', type: [ModuleResponseDto] })
+  @ApiResponse({ status: HttpStatus.BAD_REQUEST, description: 'Invalid course ID or module data' })
+  @ApiResponse({ status: HttpStatus.NOT_FOUND, description: 'Course not found' })
+  @HttpCode(HttpStatus.CREATED)
+  async bulkCreateModules(
+    @Param('courseId') courseId: string,
+    @Body() bulkCreateDto: Omit<BulkCreateModulesDto, 'course_id'>,
+    @CurrentUser() user: RequestUser
+  ) {
+    return await this.moduleService.bulkCreateModules({ ...bulkCreateDto, course_id: courseId }, user.id);
+  }
+
+  // Assignment endpoints
+  @Post('modules/:moduleId/assignments')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('teacher')
+  @ApiBearerAuth('JWT-auth')
+  @ApiOperation({ summary: 'Create a new assignment in a module' })
+  @ApiParam({ name: 'moduleId', description: 'Module ID' })
+  @ApiResponse({ status: HttpStatus.CREATED, description: 'Assignment created successfully', type: AssignmentResponseDto })
+  @ApiResponse({ status: HttpStatus.BAD_REQUEST, description: 'Invalid module ID or assignment data' })
+  @ApiResponse({ status: HttpStatus.NOT_FOUND, description: 'Module not found' })
+  @HttpCode(HttpStatus.CREATED)
+  async createAssignment(
+    @Param('moduleId') moduleId: string,
+    @Body() createAssignmentDto: CreateAssignmentDto,
+    @CurrentUser() user: RequestUser
+  ) {
+    return await this.assignmentService.createAssignment(createAssignmentDto, user.id, moduleId);
+  }
+
+  @Post('modules/:moduleId/assignments/with-file')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('teacher')
+  @ApiBearerAuth('JWT-auth')
+  @ApiOperation({ summary: 'Create a new assignment with file upload' })
+  @ApiParam({ name: 'moduleId', description: 'Module ID' })
+  @ApiConsumes('multipart/form-data')
+  @ApiResponse({ status: HttpStatus.CREATED, description: 'Assignment created successfully with file', type: AssignmentResponseDto })
+  @ApiResponse({ status: HttpStatus.BAD_REQUEST, description: 'Invalid module ID or assignment data' })
+  @ApiResponse({ status: HttpStatus.NOT_FOUND, description: 'Module not found' })
+  @UseInterceptors(FileInterceptor('attachment'))
+  @HttpCode(HttpStatus.CREATED)
+  async createAssignmentWithFile(
+    @Param('moduleId') moduleId: string,
+    @Body() createAssignmentDto: CreateAssignmentDto,
+    @UploadedFile() attachmentFile: Express.Multer.File,
+    @CurrentUser() user: RequestUser
+  ) {
+    return await this.assignmentService.createAssignmentWithFile(createAssignmentDto, user.id, moduleId, attachmentFile);
+  }
+
+  @Get('modules/:moduleId/assignments')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('teacher', 'student')
+  @ApiBearerAuth('JWT-auth')
+  @ApiOperation({ summary: 'Get all assignments for a module' })
+  @ApiParam({ name: 'moduleId', description: 'Module ID' })
+  @ApiQuery({ name: 'offset', required: false, type: Number, description: 'Number of records to skip' })
+  @ApiQuery({ name: 'limit', required: false, type: Number, description: 'Number of records to take' })
+  @ApiQuery({ name: 'assignment_type', required: false, enum: ['quiz_form', 'file_upload'], description: 'Filter by assignment type' })
+  @ApiQuery({ name: 'is_published', required: false, type: Boolean, description: 'Filter by published status' })
+  @ApiQuery({ name: 'search', required: false, type: String, description: 'Search by title' })
+  @ApiResponse({ status: HttpStatus.OK, description: 'Assignments retrieved successfully', type: PaginatedAssignmentsResponseDto })
+  @ApiResponse({ status: HttpStatus.NOT_FOUND, description: 'Module not found' })
+  async getModuleAssignments(
+    @Param('moduleId') moduleId: string,
+    @Query() query: AssignmentQueryDto,
+    @CurrentUser() user: RequestUser
+  ) {
+    return await this.assignmentService.getModuleAssignments(moduleId, query, user.id);
+  }
+
+  @Get('assignments/:assignmentId')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('teacher', 'student')
+  @ApiBearerAuth('JWT-auth')
+  @ApiOperation({ summary: 'Get assignment by ID' })
+  @ApiParam({ name: 'assignmentId', description: 'Assignment ID' })
+  @ApiResponse({ status: HttpStatus.OK, description: 'Assignment retrieved successfully', type: AssignmentResponseDto })
+  @ApiResponse({ status: HttpStatus.NOT_FOUND, description: 'Assignment not found' })
+  async getAssignmentById(
+    @Param('assignmentId') assignmentId: string,
+    @CurrentUser() user: RequestUser
+  ) {
+    return await this.assignmentService.getAssignmentById(assignmentId, user.id);
+  }
+
+  @Patch('assignments/:assignmentId')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('teacher')
+  @ApiBearerAuth('JWT-auth')
+  @ApiOperation({ summary: 'Update assignment' })
+  @ApiParam({ name: 'assignmentId', description: 'Assignment ID' })
+  @ApiResponse({ status: HttpStatus.OK, description: 'Assignment updated successfully', type: AssignmentResponseDto })
+  @ApiResponse({ status: HttpStatus.NOT_FOUND, description: 'Assignment not found' })
+  @ApiResponse({ status: HttpStatus.FORBIDDEN, description: 'You do not have permission to update this assignment' })
+  async updateAssignment(
+    @Param('assignmentId') assignmentId: string,
+    @Body() updateAssignmentDto: UpdateAssignmentDto,
+    @CurrentUser() user: RequestUser
+  ) {
+    return await this.assignmentService.updateAssignment(assignmentId, updateAssignmentDto, user.id);
+  }
+
+  @Delete('assignments/:assignmentId')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('teacher')
+  @ApiBearerAuth('JWT-auth')
+  @ApiOperation({ summary: 'Delete assignment' })
+  @ApiParam({ name: 'assignmentId', description: 'Assignment ID' })
+  @ApiResponse({ status: HttpStatus.NO_CONTENT, description: 'Assignment deleted successfully' })
+  @ApiResponse({ status: HttpStatus.NOT_FOUND, description: 'Assignment not found' })
+  @ApiResponse({ status: HttpStatus.BAD_REQUEST, description: 'Cannot delete assignment with submissions' })
+  @HttpCode(HttpStatus.NO_CONTENT)
+  async deleteAssignment(
+    @Param('assignmentId') assignmentId: string,
+    @CurrentUser() user: RequestUser
+  ) {
+    await this.assignmentService.deleteAssignment(assignmentId, user.id);
+  }
+
+  @Post('assignments/:assignmentId/submit')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('student')
+  @ApiBearerAuth('JWT-auth')
+  @ApiOperation({ summary: 'Submit assignment' })
+  @ApiParam({ name: 'assignmentId', description: 'Assignment ID' })
+  @ApiResponse({ status: HttpStatus.CREATED, description: 'Assignment submitted successfully', type: AssignmentSubmissionResponseDto })
+  @ApiResponse({ status: HttpStatus.NOT_FOUND, description: 'Assignment not found or not published' })
+  @ApiResponse({ status: HttpStatus.BAD_REQUEST, description: 'Already submitted or invalid submission data' })
+  @HttpCode(HttpStatus.CREATED)
+  async submitAssignment(
+    @Param('assignmentId') assignmentId: string,
+    @Body() submissionDto: AssignmentSubmissionDto,
+    @CurrentUser() user: RequestUser
+  ) {
+    return await this.assignmentService.submitAssignment(assignmentId, submissionDto, user.id);
+  }
+
+  @Get('assignments/:assignmentId/submissions')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('student')
+  @ApiBearerAuth('JWT-auth')
+  @ApiOperation({ summary: 'Get student submissions for an assignment' })
+  @ApiParam({ name: 'assignmentId', description: 'Assignment ID' })
+  @ApiResponse({ status: HttpStatus.OK, description: 'Submissions retrieved successfully', type: [AssignmentSubmissionResponseDto] })
+  @ApiResponse({ status: HttpStatus.NOT_FOUND, description: 'Assignment not found' })
+  async getStudentSubmissions(
+    @Param('assignmentId') assignmentId: string,
+    @CurrentUser() user: RequestUser
+  ) {
+    return await this.assignmentService.getStudentSubmissions(assignmentId, user.id);
+  }
+
+  // Instructor grading endpoints
+  @Get('assignments/:assignmentId/scores')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('teacher')
+  @ApiBearerAuth('JWT-auth')
+  @ApiOperation({ summary: 'Get student scores for an assignment (for instructors)' })
+  @ApiParam({ name: 'assignmentId', description: 'Assignment ID' })
+  @ApiResponse({ status: HttpStatus.OK, description: 'Student scores retrieved successfully', type: [StudentScoreDto] })
+  @ApiResponse({ status: HttpStatus.NOT_FOUND, description: 'Assignment not found' })
+  @ApiResponse({ status: HttpStatus.FORBIDDEN, description: 'You do not have permission to view scores' })
+  async getAssignmentStudentScores(
+    @Param('assignmentId') assignmentId: string,
+    @CurrentUser() user: RequestUser
+  ) {
+    return await this.assignmentService.getAssignmentStudentScores(assignmentId, user.id);
+  }
+
+  @Get('assignments/:assignmentId/submissions-for-grading')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('teacher')
+  @ApiBearerAuth('JWT-auth')
+  @ApiOperation({ summary: 'Get all submissions for grading (for instructors)' })
+  @ApiParam({ name: 'assignmentId', description: 'Assignment ID' })
+  @ApiResponse({ status: HttpStatus.OK, description: 'Submissions retrieved successfully', type: [AssignmentGradingResponseDto] })
+  @ApiResponse({ status: HttpStatus.NOT_FOUND, description: 'Assignment not found' })
+  @ApiResponse({ status: HttpStatus.FORBIDDEN, description: 'You do not have permission to view submissions' })
+  async getAssignmentSubmissionsForGrading(
+    @Param('assignmentId') assignmentId: string,
+    @CurrentUser() user: RequestUser
+  ) {
+    return await this.assignmentService.getAssignmentSubmissionsForGrading(assignmentId, user.id);
+  }
+
+  @Patch('assignments/submissions/grade')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('teacher')
+  @ApiBearerAuth('JWT-auth')
+  @ApiOperation({ summary: 'Manually grade a student submission' })
+  @ApiResponse({ status: HttpStatus.OK, description: 'Submission graded successfully', type: AssignmentGradingResponseDto })
+  @ApiResponse({ status: HttpStatus.NOT_FOUND, description: 'Submission not found' })
+  @ApiResponse({ status: HttpStatus.FORBIDDEN, description: 'You do not have permission to grade this submission' })
+  async manuallyGradeSubmission(
+    @Body() gradingDto: ManualGradingDto,
+    @CurrentUser() user: RequestUser
+  ) {
+    return await this.assignmentService.manuallyGradeSubmission(gradingDto, user.id);
   }
 }

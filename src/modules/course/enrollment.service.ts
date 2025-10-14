@@ -7,13 +7,13 @@ import {
   PaginatedEnrollmentsResponseDto 
 } from './dto/enrollment.dto';
 import { v4 as uuidv4 } from 'uuid';
+import { UuidValidator } from '@/common/utils/uuid.validator';
 
 @Injectable()
 export class EnrollmentService {
   constructor(private readonly prisma: PrismaService) {}
 
   async enrollInCourse(enrollDto: EnrollCourseDto, studentId: string): Promise<EnrollmentResponseDto> {
-    // Find course by invite code
     const course = await this.prisma.course.findFirst({
       where: { 
         course_invite_code: enrollDto.course_invite_code,
@@ -94,7 +94,9 @@ export class EnrollmentService {
     query: StudentEnrollmentsQueryDto, 
     studentId: string
   ): Promise<PaginatedEnrollmentsResponseDto> {
-    const { offset = 0, limit = 10, status } = query;
+    const offset = parseInt(query.offset?.toString() || '0', 10);
+    const limit = parseInt(query.limit?.toString() || '10', 10);
+    const status = query.status;
 
     const where: any = { student_id: studentId };
     if (status) {
@@ -151,7 +153,20 @@ export class EnrollmentService {
     };
   }
 
+  async getCourseEnrollmentsLength(courseId: string) {
+    const enrollments = await this.prisma.enrollment.findMany({
+      where: { course_id: courseId }
+    });
+
+    return enrollments.length;
+  }
+
   async getEnrolledCourseDetails(courseId: string, studentId: string) {
+    UuidValidator.validateMultiple({
+      'course ID': courseId,
+      'student ID': studentId
+    });
+
     // Verify student is enrolled
     const enrollment = await this.prisma.enrollment.findUnique({
       where: {
@@ -178,13 +193,19 @@ export class EnrollmentService {
             email: true,
           }
         },
-        lessons: {
+        modules: {
           where: { is_published: true },
           orderBy: { order_index: 'asc' },
           include: {
-            activities: {
+            lessons: {
               where: { is_published: true },
-              orderBy: { created_at: 'asc' }
+              orderBy: { order_index: 'asc' },
+              include: {
+                activities: {
+                  where: { is_published: true },
+                  orderBy: { created_at: 'asc' }
+                }
+              }
             }
           }
         }

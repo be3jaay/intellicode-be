@@ -16,6 +16,15 @@ export class AuthService {
   async signup(signupDto: SignupDto): Promise<AuthResponseDto> {
     const { email, password, firstName, middleName, lastName, studentNumber, section } = signupDto;
 
+    // Check if user already exists in database
+    const existingUser = await this.prisma.user.findUnique({
+      where: { email }
+    });
+
+    if (existingUser) {
+      throw new BadRequestException('User already registered');
+    }
+
     const { data: authData, error: authError } = await this.supabaseService.client.auth.signUp({
       email,
       password,

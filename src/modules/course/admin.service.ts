@@ -1,13 +1,17 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '@/core/prisma/prisma.service';
 import { ApproveCourseDto, PendingCoursesQueryDto } from './dto/admin.dto';
+import { UuidValidator } from '@/common/utils/uuid.validator';
 
 @Injectable()
 export class AdminService {
   constructor(private readonly prisma: PrismaService) {}
 
   async getPendingCourses(query: PendingCoursesQueryDto) {
-    const { offset = 0, limit = 10, status = 'waiting_for_approval' } = query;
+    // Convert string parameters to numbers
+    const offset = parseInt(query.offset?.toString() || '0', 10);
+    const limit = parseInt(query.limit?.toString() || '10', 10);
+    const status = query.status || 'waiting_for_approval';
 
     const where: any = { status };
     
@@ -44,6 +48,12 @@ export class AdminService {
   }
 
   async approveCourse(courseId: string, approveDto: ApproveCourseDto, adminId: string) {
+    // Validate UUID formats
+    UuidValidator.validateMultiple({
+      'course ID': courseId,
+      'admin ID': adminId
+    });
+
     const course = await this.prisma.course.findUnique({
       where: { id: courseId }
     });

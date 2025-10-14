@@ -4,12 +4,15 @@ import { UpdateCourseDto } from './dto/update-course.dto';
 import { PrismaService } from '@/core/prisma/prisma.service';
 import { SupabaseService } from '@/core/supabase/supabase.service';
 import { v4 as uuidv4 } from 'uuid';
+import { EnrollmentService } from './enrollment.service';
+import { UuidValidator } from '@/common/utils/uuid.validator';
 
 @Injectable()
 export class CourseService {
   constructor(
     private readonly prisma: PrismaService,
-    private readonly supabaseService: SupabaseService
+    private readonly supabaseService: SupabaseService,
+    private readonly enrollmentService: EnrollmentService
   ) {}
 
   private generateCourseInviteCode() {
@@ -24,13 +27,23 @@ export class CourseService {
 
     if (thumbnailFile) {
       try {
+        // Try regular upload first
         thumbnailUrl = await this.supabaseService.uploadImage(
           thumbnailFile,
           'course-thumbnails',
           'thumbnails'
         );
       } catch (error) {
-        throw new Error(`Failed to upload thumbnail: ${error.message}`);
+        try {
+          // If regular upload fails, try direct upload
+          thumbnailUrl = await this.supabaseService.uploadImageDirect(
+            thumbnailFile,
+            'course-thumbnails',
+            'thumbnails'
+          );
+        } catch (directError) {
+          throw new Error(`Failed to upload thumbnail: ${directError.message}`);
+        }
       }
     } else if (createCourseDto.thumbnail && typeof createCourseDto.thumbnail === 'string') {
       thumbnailUrl = createCourseDto.thumbnail;
@@ -62,7 +75,11 @@ export class CourseService {
   }
 
   async findAll(query: CourseQueryDto): Promise<PaginatedCoursesResponseDto> {
-    const { offset = 0, limit = 10, category, search } = query;
+    // Convert string parameters to numbers
+    const offset = parseInt(query.offset?.toString() || '0', 10);
+    const limit = parseInt(query.limit?.toString() || '10', 10);
+    const category = query.category;
+    const search = query.search;
 
     // Build where clause
     const where: any = {};
@@ -115,7 +132,11 @@ export class CourseService {
   }
 
   async findAllByInstructor(query: CourseQueryDto, instructor_id: string): Promise<CourseQueryByInstructorDto> {
-    const { offset = 0, limit = 10, category, search } = query;
+    // Convert string parameters to numbers
+    const offset = parseInt(query.offset?.toString() || '0', 10);
+    const limit = parseInt(query.limit?.toString() || '10', 10);
+    const category = query.category;
+    const search = query.search;
 
     // Build where clause
     const where: any = {};
@@ -151,6 +172,9 @@ export class CourseService {
             last_name: true,
             email: true,
           }
+        },
+        _count: {
+          select: { enrollments: true }
         }
       },
       orderBy: {
@@ -165,7 +189,7 @@ export class CourseService {
       data: courses,
       instructor_id,
       total,
-      offset,
+      offset, 
       limit,
       totalPages,
       currentPage
@@ -173,6 +197,9 @@ export class CourseService {
   }
 
   async findOne(id: string) {
+    // Validate UUID format
+    UuidValidator.validate(id, 'course ID');
+
     const course = await this.prisma.course.findUnique({
       where: { id },
       include: {
@@ -195,6 +222,9 @@ export class CourseService {
   }
 
   async update(id: string, updateCourseDto: UpdateCourseDto) {
+    // Validate UUID format
+    UuidValidator.validate(id, 'course ID');
+
     // Check if course exists
     const existingCourse = await this.prisma.course.findUnique({
       where: { id }
@@ -223,6 +253,9 @@ export class CourseService {
   }
 
   async remove(id: string) {
+    // Validate UUID format
+    UuidValidator.validate(id, 'course ID');
+
     // Check if course exists
     const existingCourse = await this.prisma.course.findUnique({
       where: { id }

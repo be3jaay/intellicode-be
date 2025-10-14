@@ -1,6 +1,3 @@
-// Prisma Schema for Intellicode Backend
-// This schema defines the database structure for Supabase PostgreSQL
-
 generator client {
   provider = "prisma-client-js"
 }
@@ -9,6 +6,236 @@ datasource db {
   provider  = "postgresql"
   url       = env("DATABASE_URL")
   directUrl = env("DIRECT_URL")
+}
+
+model Enrollment {
+  id          String           @id @db.Uuid
+  student_id  String           @db.Uuid
+  course_id   String           @db.Uuid
+  enrolled_at DateTime         @default(now())
+  status      EnrollmentStatus @default(active)
+  course      Course           @relation("CourseEnrollments", fields: [course_id], references: [id])
+  student     User             @relation("StudentEnrollments", fields: [student_id], references: [id])
+
+  @@unique([student_id, course_id])
+  @@index([student_id])
+  @@index([course_id])
+  @@index([status])
+  @@map("enrollments")
+}
+
+model Lesson {
+  id           String        @id @db.Uuid
+  module_id    String        @db.Uuid
+  title        String
+  description  String?
+  content      String?
+  lesson_type  LessonType    @default(content)
+  order_index  Int
+  is_published Boolean       @default(false)
+  created_at   DateTime      @default(now())
+  updated_at   DateTime      @updatedAt
+  activities   Activity[]    @relation("LessonActivities")
+  files        FileStorage[] @relation("LessonFiles")
+  module       Module        @relation("ModuleLessons", fields: [module_id], references: [id])
+
+  @@index([module_id])
+  @@index([order_index])
+  @@index([is_published])
+  @@map("lessons")
+}
+
+model Activity {
+  id            String          @id @db.Uuid
+  lesson_id     String          @db.Uuid
+  title         String
+  description   String?
+  activity_type ActivityType
+  difficulty    DifficultyLevel @default(easy)
+  points        Int             @default(0)
+  time_limit    Int?
+  is_published  Boolean         @default(false)
+  created_at    DateTime        @default(now())
+  updated_at    DateTime        @updatedAt
+  lesson        Lesson          @relation("LessonActivities", fields: [lesson_id], references: [id])
+  questions     Question[]      @relation("ActivityQuestions")
+  submissions   Submission[]    @relation("ActivitySubmissions")
+
+  @@index([lesson_id])
+  @@index([activity_type])
+  @@index([difficulty])
+  @@index([is_published])
+  @@map("activities")
+}
+
+model Question {
+  id            String           @id @db.Uuid
+  activity_id   String           @db.Uuid
+  question_text String
+  question_type ExamQuestionType
+  points        Int              @default(1)
+  order_index   Int
+  is_required   Boolean          @default(true)
+  created_at    DateTime         @default(now())
+  updated_at    DateTime         @updatedAt
+  answers       Answer[]         @relation("QuestionAnswers")
+  options       QuestionOption[] @relation("QuestionOptions")
+  activity      Activity         @relation("ActivityQuestions", fields: [activity_id], references: [id])
+
+  @@index([activity_id])
+  @@index([question_type])
+  @@index([order_index])
+  @@map("questions")
+}
+
+model QuestionOption {
+  id          String   @id @db.Uuid
+  question_id String   @db.Uuid
+  option_text String
+  is_correct  Boolean  @default(false)
+  order_index Int
+  created_at  DateTime @default(now())
+  question    Question @relation("QuestionOptions", fields: [question_id], references: [id])
+
+  @@index([question_id])
+  @@index([order_index])
+  @@map("question_options")
+}
+
+model Submission {
+  id           String           @id @db.Uuid
+  activity_id  String           @db.Uuid
+  student_id   String           @db.Uuid
+  score        Int              @default(0)
+  max_score    Int
+  submitted_at DateTime         @default(now())
+  status       SubmissionStatus @default(submitted)
+  answers      Answer[]         @relation("SubmissionAnswers")
+  activity     Activity         @relation("ActivitySubmissions", fields: [activity_id], references: [id])
+  student      User             @relation("StudentSubmissions", fields: [student_id], references: [id])
+
+  @@index([activity_id])
+  @@index([student_id])
+  @@index([submitted_at])
+  @@index([status])
+  @@map("submissions")
+}
+
+model Answer {
+  id            String     @id @db.Uuid
+  submission_id String     @db.Uuid
+  question_id   String     @db.Uuid
+  answer_text   String?
+  is_correct    Boolean    @default(false)
+  points_earned Int        @default(0)
+  created_at    DateTime   @default(now())
+  question      Question   @relation("QuestionAnswers", fields: [question_id], references: [id])
+  submission    Submission @relation("SubmissionAnswers", fields: [submission_id], references: [id])
+
+  @@index([submission_id])
+  @@index([question_id])
+  @@map("answers")
+}
+
+model FileStorage {
+  id            String       @id @db.Uuid
+  filename      String
+  original_name String
+  file_type     FileType
+  category      FileCategory
+  mime_type     String
+  size          Int
+  public_url    String
+  storage_path  String
+  course_id     String       @db.Uuid
+  module_id     String?      @db.Uuid
+  lesson_id     String?      @db.Uuid
+  assignment_id String?      @db.Uuid
+  submission_id String?      @db.Uuid
+  description   String?
+  uploaded_at   DateTime     @default(now())
+  updated_at DateTime     @updatedAt
+  course         Course        @relation("CourseFiles", fields: [course_id], references: [id])
+  module        Module?      @relation("ModuleFiles", fields: [module_id], references: [id])
+  lesson        Lesson?      @relation("LessonFiles", fields: [lesson_id], references: [id])
+  assignment    Assignment?  @relation("AssignmentFiles", fields: [assignment_id], references: [id])
+  assignment_submission AssignmentSubmission? @relation("AssignmentSubmissionFiles", fields: [submission_id], references: [id])
+
+  @@index([course_id])
+  @@index([module_id])
+  @@index([lesson_id])
+  @@index([assignment_id])
+  @@index([submission_id])
+  @@index([file_type])
+  @@index([category])
+  @@index([uploaded_at])
+  @@map("file_storage")
+}
+
+model User {
+  id              String       @id @db.Uuid
+  email           String       @unique
+  first_name      String
+  middle_name     String?
+  last_name       String
+  role            UserRole     @default(student)
+  student_number  String?
+  section         String?
+  profile_picture String?
+  created_at      DateTime     @default(now())
+  updated_at      DateTime     @updatedAt
+  courses         Course[]     @relation("InstructorCourses")
+  enrollments     Enrollment[] @relation("StudentEnrollments")
+  submissions     Submission[] @relation("StudentSubmissions")
+  assignment_submissions AssignmentSubmission[] @relation("StudentAssignmentSubmissions")
+
+  @@index([email])
+  @@index([role])
+  @@index([student_number])
+  @@map("users")
+}
+
+model Course {
+  id                 String        @id @db.Uuid
+  title              String
+  description        String
+  category           String
+  thumbnail          String
+  created_at         DateTime      @default(now())
+  updated_at         DateTime      @updatedAt
+  course_invite_code String
+  instructor_id      String?       @db.Uuid
+  status             CourseStatus  @default(waiting_for_approval)
+  instructor         User?         @relation("InstructorCourses", fields: [instructor_id], references: [id])
+  enrollments        Enrollment[]  @relation("CourseEnrollments")
+  modules            Module[]      @relation("CourseModules")
+  files              FileStorage[] @relation("CourseFiles")
+
+  @@index([title])
+  @@index([category])
+  @@index([instructor_id])
+  @@index([status])
+  @@map("courses")
+}
+
+model Module {
+  id          String        @id @db.Uuid
+  title       String
+  description String?
+  course_id   String        @db.Uuid
+  order_index Int           @default(0)
+  is_published Boolean       @default(false)
+  created_at  DateTime      @default(now())
+  updated_at  DateTime      @updatedAt
+  course      Course        @relation("CourseModules", fields: [course_id], references: [id])
+  files       FileStorage[] @relation("ModuleFiles")
+  lessons     Lesson[]      @relation("ModuleLessons")
+  assignments Assignment[]  @relation("ModuleAssignments")
+
+  @@index([course_id])
+  @@index([order_index])
+  @@index([is_published])
+  @@map("modules")
 }
 
 enum UserRole {
@@ -27,6 +254,7 @@ enum ExamQuestionType {
 enum ActivityType {
   code_sandbox
   quiz_form
+  file_upload
 }
 
 enum DifficultyLevel {
@@ -47,149 +275,6 @@ enum CourseStatus {
   rejected
 }
 
-// Enrollment model for student-course relationships
-model Enrollment {
-  id String @id @db.Uuid
-  student_id String @db.Uuid
-  course_id String @db.Uuid
-  enrolled_at DateTime @default(now())
-  status EnrollmentStatus @default(active)
-  
-  student User @relation("StudentEnrollments", fields: [student_id], references: [id])
-  course Course @relation("CourseEnrollments", fields: [course_id], references: [id])
-  
-  @@unique([student_id, course_id])
-  @@index([student_id])
-  @@index([course_id])
-  @@index([status])
-  @@map("enrollments")
-}
-
-// Lesson model for course content
-model Lesson {
-  id String @id @db.Uuid
-  course_id String @db.Uuid
-  title String
-  description String?
-  content String? // Rich text content or markdown
-  lesson_type LessonType @default(content)
-  order_index Int // For ordering lessons within a course
-  is_published Boolean @default(false)
-  created_at DateTime @default(now())
-  updated_at DateTime @updatedAt
-  
-  course Course @relation("CourseLessons", fields: [course_id], references: [id])
-  activities Activity[] @relation("LessonActivities")
-  
-  @@index([course_id])
-  @@index([order_index])
-  @@index([is_published])
-  @@map("lessons")
-}
-
-// Activity model for interactive content
-model Activity {
-  id String @id @db.Uuid
-  lesson_id String @db.Uuid
-  title String
-  description String?
-  activity_type ActivityType
-  difficulty DifficultyLevel @default(easy)
-  points Int @default(0)
-  time_limit Int? // in minutes
-  is_published Boolean @default(false)
-  created_at DateTime @default(now())
-  updated_at DateTime @updatedAt
-  
-  lesson Lesson @relation("LessonActivities", fields: [lesson_id], references: [id])
-  questions Question[] @relation("ActivityQuestions")
-  submissions Submission[] @relation("ActivitySubmissions")
-  
-  @@index([lesson_id])
-  @@index([activity_type])
-  @@index([difficulty])
-  @@index([is_published])
-  @@map("activities")
-}
-
-// Question model for quiz/exam questions
-model Question {
-  id String @id @db.Uuid
-  activity_id String @db.Uuid
-  question_text String
-  question_type ExamQuestionType
-  points Int @default(1)
-  order_index Int
-  is_required Boolean @default(true)
-  created_at DateTime @default(now())
-  updated_at DateTime @updatedAt
-  
-  activity Activity @relation("ActivityQuestions", fields: [activity_id], references: [id])
-  options QuestionOption[] @relation("QuestionOptions")
-  answers Answer[] @relation("QuestionAnswers")
-  
-  @@index([activity_id])
-  @@index([question_type])
-  @@index([order_index])
-  @@map("questions")
-}
-
-// Question options for multiple choice questions
-model QuestionOption {
-  id String @id @db.Uuid
-  question_id String @db.Uuid
-  option_text String
-  is_correct Boolean @default(false)
-  order_index Int
-  created_at DateTime @default(now())
-  
-  question Question @relation("QuestionOptions", fields: [question_id], references: [id])
-  
-  @@index([question_id])
-  @@index([order_index])
-  @@map("question_options")
-}
-
-// Student submissions for activities
-model Submission {
-  id String @id @db.Uuid
-  activity_id String @db.Uuid
-  student_id String @db.Uuid
-  score Int @default(0)
-  max_score Int
-  submitted_at DateTime @default(now())
-  status SubmissionStatus @default(submitted)
-  
-  activity Activity @relation("ActivitySubmissions", fields: [activity_id], references: [id])
-  student User @relation("StudentSubmissions", fields: [student_id], references: [id])
-  answers Answer[] @relation("SubmissionAnswers")
-  
-  @@index([activity_id])
-  @@index([student_id])
-  @@index([submitted_at])
-  @@index([status])
-  @@map("submissions")
-}
-
-// Student answers to questions
-model Answer {
-  id String @id @db.Uuid
-  submission_id String @db.Uuid
-  question_id String @db.Uuid
-  answer_text String?
-  is_correct Boolean @default(false)
-  points_earned Int @default(0)
-  created_at DateTime @default(now())
-  
-  submission Submission @relation("SubmissionAnswers", fields: [submission_id], references: [id])
-  question Question @relation("QuestionAnswers", fields: [question_id], references: [id])
-  
-  @@index([submission_id])
-  @@index([question_id])
-  @@map("answers")
-}
-
-// Add new enums
 enum EnrollmentStatus {
   active
   completed
@@ -211,54 +296,105 @@ enum SubmissionStatus {
   returned
 }
 
-model User {
-  id              String    @id @db.Uuid
-  email           String    @unique
-  first_name      String
-  middle_name     String?
-  last_name       String
-  role            UserRole  @default(student)
-  student_number  String?
-  section         String?
-  profile_picture String?
-  created_at      DateTime  @default(now())
-  updated_at      DateTime  @updatedAt
-
-  // Updated relationships
-  courses Course[] @relation("InstructorCourses")
-  enrollments Enrollment[] @relation("StudentEnrollments")
-  submissions Submission[] @relation("StudentSubmissions")
-  
-  @@index([email])
-  @@index([role])
-  @@index([student_number])
-  @@map("users")
+enum FileType {
+  image
+  video
+  pdf
+  document
 }
 
-model Course {
-  id String @id @db.Uuid
-  title String
-  description String
-  category String
-  thumbnail String
-  created_at DateTime @default(now())
-  updated_at DateTime @updatedAt
-  course_invite_code String
-  instructor_id String? @db.Uuid
-  status CourseStatus @default(waiting_for_approval)
+enum FileCategory {
+  thumbnail
+  lesson_content
+  assignment
+  resource
+}
 
-  // Updated relationships
-  instructor User? @relation("InstructorCourses", fields: [instructor_id], references: [id])
-  enrollments Enrollment[] @relation("CourseEnrollments")
-  lessons Lesson[] @relation("CourseLessons")
-  
-  @@map("courses")
-  @@index([title])
-  @@index([category])
-  @@index([instructor_id])
+model Assignment {
+  id            String           @id @db.Uuid
+  module_id     String           @db.Uuid
+  title         String
+  description   String?
+  assignment_type AssignmentType
+  points        Int              @default(0)
+  due_date      DateTime?
+  is_published  Boolean          @default(false)
+  created_at    DateTime         @default(now())
+  updated_at    DateTime         @updatedAt
+  module        Module           @relation("ModuleAssignments", fields: [module_id], references: [id])
+  questions     AssignmentQuestion[] @relation("AssignmentQuestions")
+  submissions   AssignmentSubmission[] @relation("AssignmentSubmissions")
+  attachments   FileStorage[]    @relation("AssignmentFiles")
+
+  @@index([module_id])
+  @@index([assignment_type])
+  @@index([is_published])
+  @@index([due_date])
+  @@map("assignments")
+}
+
+model AssignmentQuestion {
+  id            String           @id @db.Uuid
+  assignment_id   String           @db.Uuid
+  question_text String
+  question_type ExamQuestionType
+  points        Int              @default(1)
+  order_index   Int
+  is_required   Boolean          @default(true)
+  correct_answer String?
+  correct_answers String[]       @default([])
+  options       String[]         @default([])
+  explanation   String?
+  case_sensitive Boolean         @default(false)
+  is_true       Boolean?
+  created_at    DateTime         @default(now())
+  updated_at    DateTime         @updatedAt
+  assignment    Assignment       @relation("AssignmentQuestions", fields: [assignment_id], references: [id])
+  answers       AssignmentAnswer[] @relation("AssignmentQuestionAnswers")
+
+  @@index([assignment_id])
+  @@index([question_type])
+  @@index([order_index])
+  @@map("assignment_questions")
+}
+
+model AssignmentSubmission {
+  id           String           @id @db.Uuid
+  assignment_id String           @db.Uuid
+  student_id   String           @db.Uuid
+  score        Int              @default(0)
+  max_score    Int
+  submitted_at DateTime         @default(now())
+  status       SubmissionStatus @default(submitted)
+  answers      AssignmentAnswer[] @relation("AssignmentSubmissionAnswers")
+  files        FileStorage[]    @relation("AssignmentSubmissionFiles")
+  assignment   Assignment       @relation("AssignmentSubmissions", fields: [assignment_id], references: [id])
+  student      User             @relation("StudentAssignmentSubmissions", fields: [student_id], references: [id])
+
+  @@index([assignment_id])
+  @@index([student_id])
+  @@index([submitted_at])
   @@index([status])
+  @@map("assignment_submissions")
 }
 
+model AssignmentAnswer {
+  id            String     @id @db.Uuid
+  submission_id String     @db.Uuid
+  question_id   String     @db.Uuid
+  answer_text   String?
+  is_correct    Boolean    @default(false)
+  points_earned Int        @default(0)
+  created_at    DateTime   @default(now())
+  question      AssignmentQuestion @relation("AssignmentQuestionAnswers", fields: [question_id], references: [id])
+  submission    AssignmentSubmission @relation("AssignmentSubmissionAnswers", fields: [submission_id], references: [id])
 
+  @@index([submission_id])
+  @@index([question_id])
+  @@map("assignment_answers")
+}
 
-
+enum AssignmentType {
+  quiz_form
+  file_upload
+}

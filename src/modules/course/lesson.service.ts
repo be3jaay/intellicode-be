@@ -6,28 +6,40 @@ import { PrismaService } from '@/core/prisma/prisma.service';
 import { CreateLessonDto, BulkCreateLessonsDto, LessonResponseDto } from './dto/lesson.dto';
 import { LessonType } from '@prisma/client';
 import { v4 as uuidv4 } from 'uuid';
+import { UuidValidator } from '@/common/utils/uuid.validator';
 
 @Injectable()
 export class LessonService {
   constructor(private readonly prisma: PrismaService) {}
 
-  async createLesson(createLessonDto: CreateLessonDto, courseId: string, instructorId: string): Promise<LessonResponseDto> {
-    // Verify instructor owns the course
-    const course = await this.prisma.course.findFirst({
+  async createLesson(createLessonDto: CreateLessonDto, moduleId: string, instructorId: string): Promise<LessonResponseDto> {
+    // Validate UUID formats
+    UuidValidator.validateMultiple({
+      'module ID': moduleId,
+      'instructor ID': instructorId
+    });
+
+    // Verify instructor owns the course that contains this module
+    const module = await this.prisma.module.findFirst({
       where: { 
-        id: courseId, 
-        instructor_id: instructorId 
+        id: moduleId,
+        course: {
+          instructor_id: instructorId
+        }
+      },
+      include: {
+        course: true
       }
     });
 
-    if (!course) {
-      throw new NotFoundException('Course not found or you do not have permission');
+    if (!module) {
+      throw new NotFoundException('Module not found or you do not have permission');
     }
 
     const lesson = await this.prisma.lesson.create({
       data: {
         id: uuidv4(),
-        course_id: courseId,
+        module_id: moduleId,
         title: createLessonDto.title,
         description: createLessonDto.description,
         content: createLessonDto.content,
@@ -39,7 +51,7 @@ export class LessonService {
 
     return {
       id: lesson.id,
-      course_id: lesson.course_id,
+      module_id: lesson.module_id,
       title: lesson.title,
       description: lesson.description,
       content: lesson.content,
@@ -47,26 +59,42 @@ export class LessonService {
       order_index: lesson.order_index,
       is_published: lesson.is_published,
       created_at: lesson.created_at,
-      updated_at: lesson.updated_at
+      updated_at: lesson.updated_at,
+      module: {
+        id: module.id,
+        title: module.title,
+        description: module.description
+      }
     };
   }
 
   async bulkCreateLessons(bulkCreateDto: BulkCreateLessonsDto, instructorId: string): Promise<LessonResponseDto[]> {
-    // Verify instructor owns the course
-    const course = await this.prisma.course.findFirst({
+    // Validate UUID formats
+    UuidValidator.validateMultiple({
+      'module ID': bulkCreateDto.module_id,
+      'instructor ID': instructorId
+    });
+
+    // Verify instructor owns the course that contains this module
+    const module = await this.prisma.module.findFirst({
       where: { 
-        id: bulkCreateDto.course_id, 
-        instructor_id: instructorId 
+        id: bulkCreateDto.module_id,
+        course: {
+          instructor_id: instructorId
+        }
+      },
+      include: {
+        course: true
       }
     });
 
-    if (!course) {
-      throw new NotFoundException('Course not found or you do not have permission');
+    if (!module) {
+      throw new NotFoundException('Module not found or you do not have permission');
     }
 
     const lessonsData = bulkCreateDto.lessons.map(lesson => ({
       id: uuidv4(),
-      course_id: bulkCreateDto.course_id,
+      module_id: bulkCreateDto.module_id,
       title: lesson.title,
       description: lesson.description,
       content: lesson.content,
@@ -81,13 +109,13 @@ export class LessonService {
 
     // Return created lessons
     const createdLessons = await this.prisma.lesson.findMany({
-      where: { course_id: bulkCreateDto.course_id },
+      where: { module_id: bulkCreateDto.module_id },
       orderBy: { order_index: 'asc' }
     });
 
     return createdLessons.map(lesson => ({
       id: lesson.id,
-      course_id: lesson.course_id,
+      module_id: lesson.module_id,
       title: lesson.title,
       description: lesson.description,
       content: lesson.content,
@@ -95,25 +123,41 @@ export class LessonService {
       order_index: lesson.order_index,
       is_published: lesson.is_published,
       created_at: lesson.created_at,
-      updated_at: lesson.updated_at
+      updated_at: lesson.updated_at,
+      module: {
+        id: module.id,
+        title: module.title,
+        description: module.description
+      }
     }));
   }
 
-  async getCourseLessons(courseId: string, instructorId: string) {
-    // Verify instructor owns the course
-    const course = await this.prisma.course.findFirst({
+  async getModuleLessons(moduleId: string, instructorId: string) {
+    // Validate UUID formats
+    UuidValidator.validateMultiple({
+      'module ID': moduleId,
+      'instructor ID': instructorId
+    });
+
+    // Verify instructor owns the course that contains this module
+    const module = await this.prisma.module.findFirst({
       where: { 
-        id: courseId, 
-        instructor_id: instructorId 
+        id: moduleId,
+        course: {
+          instructor_id: instructorId
+        }
+      },
+      include: {
+        course: true
       }
     });
 
-    if (!course) {
-      throw new NotFoundException('Course not found or you do not have permission');
+    if (!module) {
+      throw new NotFoundException('Module not found or you do not have permission');
     }
 
     return await this.prisma.lesson.findMany({
-      where: { course_id: courseId },
+      where: { module_id: moduleId },
       orderBy: { order_index: 'asc' },
       include: {
         activities: {

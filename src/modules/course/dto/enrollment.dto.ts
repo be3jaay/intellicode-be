@@ -1,5 +1,6 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { IsString, IsNotEmpty, IsOptional, IsEnum } from 'class-validator';
+import { IsString, IsNotEmpty, IsOptional, IsEnum, IsNumber, IsInt } from 'class-validator';
+import { Type, Transform } from 'class-transformer';
 
 export class EnrollCourseDto {
   @ApiProperty({ 
@@ -46,10 +47,14 @@ export class EnrollmentResponseDto {
 export class StudentEnrollmentsQueryDto {
   @ApiProperty({ required: false, description: 'Number of records to skip' })
   @IsOptional()
+  @Type(() => Number)
+  @IsInt()
   offset?: number = 0;
 
   @ApiProperty({ required: false, description: 'Number of records to take' })
   @IsOptional()
+  @Type(() => Number)
+  @IsInt()
   limit?: number = 10;
 
   @ApiProperty({ required: false, description: 'Filter by enrollment status' })

@@ -24,7 +24,7 @@ export class CreateLessonDto {
   @IsOptional()
   lesson_type?: LessonType = LessonType.content;
 
-  @ApiProperty({ description: 'Order index within the course' })
+  @ApiProperty({ description: 'Order index within the module' })
   @IsInt()
   order_index: number;
 
@@ -35,10 +35,10 @@ export class CreateLessonDto {
 }
 
 export class BulkCreateLessonsDto {
-  @ApiProperty({ description: 'Course ID' })
+  @ApiProperty({ description: 'Module ID' })
   @IsString()
   @IsNotEmpty()
-  course_id: string;
+  module_id: string;
 
   @ApiProperty({ 
     type: [CreateLessonDto], 
@@ -54,8 +54,8 @@ export class LessonResponseDto {
   @ApiProperty({ description: 'Lesson ID' })
   id: string;
 
-  @ApiProperty({ description: 'Course ID' })
-  course_id: string;
+  @ApiProperty({ description: 'Module ID' })
+  module_id: string;
 
   @ApiProperty({ description: 'Lesson title' })
   title: string;
@@ -80,6 +80,13 @@ export class LessonResponseDto {
 
   @ApiProperty({ description: 'Updated date' })
   updated_at: Date;
+
+  @ApiProperty({ description: 'Module information', required: false })
+  module?: {
+    id: string;
+    title: string;
+    description?: string;
+  };
 
   @ApiProperty({ description: 'Activities in this lesson' })
   activities?: any[];
