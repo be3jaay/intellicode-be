@@ -208,6 +208,7 @@ export class AssignmentQueryDto {
   @IsOptional()
   @IsInt()
   @Min(0)
+  @Type(() => Number)
   offset?: number = 0;
 
   @ApiPropertyOptional({ description: 'Number of records to take', default: 10 })
@@ -215,6 +216,7 @@ export class AssignmentQueryDto {
   @IsInt()
   @Min(1)
   @Max(100)
+  @Type(() => Number)
   limit?: number = 10;
 
   @ApiPropertyOptional({ enum: AssignmentType, description: 'Filter by assignment type' })
@@ -225,6 +227,7 @@ export class AssignmentQueryDto {
   @ApiPropertyOptional({ description: 'Filter by published status' })
   @IsOptional()
   @IsBoolean()
+  @Type(() => Boolean)
   is_published?: boolean;
 
   @ApiPropertyOptional({ description: 'Search by title' })

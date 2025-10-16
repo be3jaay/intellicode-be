@@ -24,6 +24,14 @@ import {
   StudentEnrollmentsQueryDto,
   PaginatedEnrollmentsResponseDto 
 } from './dto/enrollment.dto';
+import {
+  StudentDto,
+  CourseStudentsQueryDto,
+  PaginatedStudentsResponseDto,
+  UpdateEnrollmentStatusDto,
+  EnrollmentStatusResponseDto,
+  CourseProgressDto
+} from './dto/student.dto';
 import { 
   CreateLessonDto, 
   BulkCreateLessonsDto, 
@@ -145,6 +153,15 @@ export class CourseController {
   @ApiQuery({ name: 'status', required: false, type: String, description: 'Filter by enrollment status' })
   async getMyEnrollments(@Query() query: StudentEnrollmentsQueryDto, @CurrentUser() user: RequestUser) {
     return await this.enrollmentService.getStudentEnrollments(query, user.id);
+  }
+
+  @Get('latest-enrollments')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('student')
+  @ApiBearerAuth('JWT-auth')
+  @ApiOperation({ summary: 'Get my three latest enrollments' })
+  async getMyThreeLatestEnrollments(@CurrentUser() user: RequestUser) {
+    return await this.enrollmentService.getMyThreeLatestEnrollments(user.id);
   }
 
   @Get('enrolled/:courseId')
@@ -376,6 +393,17 @@ export class CourseController {
     @CurrentUser() user: RequestUser
   ) {
     return await this.moduleService.createModule({ ...createModuleDto, course_id: courseId }, user.id);
+  }
+
+  @Get(':courseId/modules')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('teacher', 'student')
+  @ApiBearerAuth('JWT-auth')
+  @ApiOperation({ summary: 'Get all modules for a course' })
+  @ApiParam({ name: 'courseId', description: 'Course ID' })
+  @ApiResponse({ status: HttpStatus.OK, description: 'Modules retrieved successfully', type: [ModuleResponseDto] })
+  async getAllModulesByCourseId(@Param('courseId') courseId: string) {
+    return await this.moduleService.getAllModulesByCourseId(courseId);
   }
 
   @Get(':courseId/modules')
@@ -654,5 +682,63 @@ export class CourseController {
     @CurrentUser() user: RequestUser
   ) {
     return await this.assignmentService.manuallyGradeSubmission(gradingDto, user.id);
+  }
+
+  // Student management endpoints
+  @Get(':courseId/students')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('teacher')
+  @ApiBearerAuth('JWT-auth')
+  @ApiOperation({ summary: 'Get all students enrolled in a course' })
+  @ApiParam({ name: 'courseId', description: 'Course ID' })
+  @ApiQuery({ name: 'offset', required: false, type: Number, description: 'Number of records to skip' })
+  @ApiQuery({ name: 'limit', required: false, type: Number, description: 'Number of records to take' })
+  @ApiQuery({ name: 'status', required: false, enum: ['active', 'completed', 'dropped', 'suspended'], description: 'Filter by enrollment status' })
+  @ApiQuery({ name: 'search', required: false, type: String, description: 'Search by student name or email' })
+  @ApiQuery({ name: 'section', required: false, type: String, description: 'Filter by section' })
+  @ApiResponse({ status: HttpStatus.OK, description: 'Students retrieved successfully', type: PaginatedStudentsResponseDto })
+  @ApiResponse({ status: HttpStatus.NOT_FOUND, description: 'Course not found' })
+  @ApiResponse({ status: HttpStatus.FORBIDDEN, description: 'You do not have permission to view students' })
+  async getCourseStudents(
+    @Param('courseId') courseId: string,
+    @Query() query: CourseStudentsQueryDto,
+    @CurrentUser() user: RequestUser
+  ) {
+    return await this.enrollmentService.getCourseStudents(courseId, query, user.id);
+  }
+
+  @Patch(':courseId/students/:studentId/status')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('teacher')
+  @ApiBearerAuth('JWT-auth')
+  @ApiOperation({ summary: 'Update student enrollment status' })
+  @ApiParam({ name: 'courseId', description: 'Course ID' })
+  @ApiParam({ name: 'studentId', description: 'Student ID' })
+  @ApiResponse({ status: HttpStatus.OK, description: 'Enrollment status updated successfully', type: EnrollmentStatusResponseDto })
+  @ApiResponse({ status: HttpStatus.NOT_FOUND, description: 'Course or student not found' })
+  @ApiResponse({ status: HttpStatus.FORBIDDEN, description: 'You do not have permission to manage enrollments' })
+  async updateEnrollmentStatus(
+    @Param('courseId') courseId: string,
+    @Param('studentId') studentId: string,
+    @Body() updateDto: UpdateEnrollmentStatusDto,
+    @CurrentUser() user: RequestUser
+  ) {
+    return await this.enrollmentService.updateEnrollmentStatus(courseId, studentId, updateDto, user.id);
+  }
+
+  @Get(':courseId/progress')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('teacher')
+  @ApiBearerAuth('JWT-auth')
+  @ApiOperation({ summary: 'Get course progress statistics' })
+  @ApiParam({ name: 'courseId', description: 'Course ID' })
+  @ApiResponse({ status: HttpStatus.OK, description: 'Course progress retrieved successfully', type: CourseProgressDto })
+  @ApiResponse({ status: HttpStatus.NOT_FOUND, description: 'Course not found' })
+  @ApiResponse({ status: HttpStatus.FORBIDDEN, description: 'You do not have permission to view progress' })
+  async getCourseProgress(
+    @Param('courseId') courseId: string,
+    @CurrentUser() user: RequestUser
+  ) {
+    return await this.enrollmentService.getCourseProgress(courseId, user.id);
   }
 }

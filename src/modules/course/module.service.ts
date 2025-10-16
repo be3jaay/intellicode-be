@@ -8,6 +8,19 @@ import { v4 as uuidv4 } from 'uuid';
 export class ModuleService {
   constructor(private readonly prisma: PrismaService) {}
 
+  async getAllModulesByCourseId(courseId: string): Promise<{module_id: string, module_title: string}[]> {
+    const modules = await this.prisma.module.findMany({
+      where: { course_id: courseId },
+      orderBy: {
+        order_index: 'asc',
+      },
+    });
+    return modules.map(module => ({
+      module_id: module.id,
+      module_title: module.title,
+    }));
+  }
+
   async createModule(createModuleDto: CreateModuleDto, instructorId: string): Promise<ModuleResponseDto> {
     const { course_id, ...moduleData } = createModuleDto;
 
