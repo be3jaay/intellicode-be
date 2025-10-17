@@ -25,23 +25,27 @@ model Enrollment {
 }
 
 model Lesson {
-  id           String        @id @db.Uuid
-  module_id    String        @db.Uuid
-  title        String
-  description  String?
-  content      String?
-  lesson_type  LessonType    @default(content)
-  order_index  Int
-  is_published Boolean       @default(false)
-  created_at   DateTime      @default(now())
-  updated_at   DateTime      @updatedAt
-  activities   Activity[]    @relation("LessonActivities")
-  files        FileStorage[] @relation("LessonFiles")
-  module       Module        @relation("ModuleLessons", fields: [module_id], references: [id])
+  id               String           @id @db.Uuid
+  module_id        String           @db.Uuid
+  title            String
+  description      String?
+  content          String?
+  order_index      Int
+  is_published     Boolean          @default(false)
+  difficulty       LessonDifficulty  @default(beginner)
+  estimated_duration Int?          // in minutes
+  tags             String[]        @default([])
+  created_at       DateTime         @default(now())
+  updated_at       DateTime         @updatedAt
+  activities       Activity[]       @relation("LessonActivities")
+  files            FileStorage[]    @relation("LessonFiles")
+  progress         LessonProgress[] @relation("LessonProgress")
+  module           Module           @relation("ModuleLessons", fields: [module_id], references: [id])
 
   @@index([module_id])
   @@index([order_index])
   @@index([is_published])
+  @@index([difficulty])
   @@map("lessons")
 }
 
@@ -188,6 +192,7 @@ model User {
   enrollments     Enrollment[] @relation("StudentEnrollments")
   submissions     Submission[] @relation("StudentSubmissions")
   assignment_submissions AssignmentSubmission[] @relation("StudentAssignmentSubmissions")
+  lesson_progress LessonProgress[] @relation("StudentLessonProgress")
 
   @@index([email])
   @@index([role])
@@ -282,12 +287,6 @@ enum EnrollmentStatus {
   suspended
 }
 
-enum LessonType {
-  content
-  video
-  reading
-  assignment
-}
 
 enum SubmissionStatus {
   draft
@@ -397,4 +396,30 @@ model AssignmentAnswer {
 enum AssignmentType {
   quiz_form
   file_upload
+}
+
+enum LessonDifficulty {
+  beginner
+  intermediate
+  advanced
+}
+
+model LessonProgress {
+  id                String    @id @db.Uuid
+  student_id        String    @db.Uuid
+  lesson_id         String    @db.Uuid
+  completion_percentage Int   @default(0)
+  is_completed      Boolean   @default(false)
+  last_accessed     DateTime  @default(now())
+  completed_at      DateTime?
+  created_at        DateTime  @default(now())
+  updated_at        DateTime  @updatedAt
+  student           User      @relation("StudentLessonProgress", fields: [student_id], references: [id])
+  lesson            Lesson    @relation("LessonProgress", fields: [lesson_id], references: [id])
+
+  @@unique([student_id, lesson_id], name: "student_id_lesson_id")
+  @@index([student_id])
+  @@index([lesson_id])
+  @@index([is_completed])
+  @@map("lesson_progress")
 }

@@ -1,6 +1,6 @@
 import { Injectable, NotFoundException, BadRequestException, ForbiddenException } from '@nestjs/common';
 import { PrismaService } from '@/core/prisma/prisma.service';
-import { CreateModuleDto, UpdateModuleDto, ModuleQueryDto, ModuleResponseDto, PaginatedModulesResponseDto, BulkCreateModulesDto } from './dto/module.dto';
+import { CreateModuleDto, UpdateModuleDto, ModuleQueryDto, ModuleResponseDto, PaginatedModulesResponseDto, BulkCreateModulesDto, ModuleListQueryDto, PaginatedModuleListResponseDto, ModuleListItemDto } from './dto/module.dto';
 import { UuidValidator } from '@/common/utils/uuid.validator';
 import { v4 as uuidv4 } from 'uuid';
 
@@ -373,6 +373,94 @@ export class ModuleService {
       course: module.course,
       lessons_count: module._count?.lessons ?? 0,
       files_count: module._count?.files ?? 0,
+    };
+  }
+
+  async getCourseModulesList(
+    courseId: string, 
+    query: ModuleListQueryDto, 
+    userId: string
+  ): Promise<PaginatedModuleListResponseDto> {
+    const { offset = 0, limit = 10, search } = query;
+
+    // Validate course ID format
+    if (!UuidValidator.validate(courseId)) {
+      throw new BadRequestException('Invalid course ID format');
+    }
+
+    // Check if course exists and user has access
+    const course = await this.prisma.course.findFirst({
+      where: {
+        id: courseId,
+        OR: [
+          { instructor_id: userId },
+          { enrollments: { some: { student_id: userId } } }
+        ]
+      }
+    });
+
+    if (!course) {
+      throw new NotFoundException('Course not found or you do not have access to this course');
+    }
+
+    // Build search conditions
+    const whereConditions: any = {
+      course_id: courseId
+    };
+
+    if (search) {
+      whereConditions.OR = [
+        { title: { contains: search, mode: 'insensitive' } },
+        { description: { contains: search, mode: 'insensitive' } }
+      ];
+    }
+
+    // Get total count
+    const total = await this.prisma.module.count({
+      where: whereConditions
+    });
+
+    // Get modules with counts
+    const modules = await this.prisma.module.findMany({
+      where: whereConditions,
+      select: {
+        id: true,
+        title: true,
+        description: true,
+        created_at: true,
+        updated_at: true,
+        _count: {
+          select: {
+            lessons: true,
+            assignments: true
+          }
+        }
+      },
+      orderBy: {
+        order_index: 'asc'
+      },
+      skip: offset,
+      take: limit
+    });
+
+    // Format response
+    const formattedModules: ModuleListItemDto[] = modules.map(module => ({
+      id: module.id,
+      title: module.title,
+      description: module.description,
+      created_at: module.created_at,
+      updated_at: module.updated_at,
+      lessons_count: module._count.lessons,
+      activities_count: module._count.assignments
+    }));
+
+    return {
+      modules: formattedModules,
+      total,
+      offset,
+      limit,
+      hasNext: offset + limit < total,
+      hasPrevious: offset > 0
     };
   }
 }

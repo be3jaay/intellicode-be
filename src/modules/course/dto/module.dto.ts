@@ -154,3 +154,91 @@ export class BulkCreateModulesDto {
   @IsNotEmpty()
   modules: Omit<CreateModuleDto, 'course_id'>[];
 }
+
+export class BulkCreateModuleItemDto {
+  @ApiProperty({ description: 'Module title' })
+  @IsString()
+  @IsNotEmpty()
+  title: string;
+
+  @ApiProperty({ description: 'Module description', required: false })
+  @IsString()
+  @IsOptional()
+  description?: string;
+
+  @ApiProperty({ description: 'Order index', required: false, default: 0 })
+  @IsInt()
+  @Min(0)
+  @IsOptional()
+  @Type(() => Number)
+  order_index?: number;
+
+  @ApiProperty({ description: 'Is published', required: false, default: false })
+  @IsBoolean()
+  @IsOptional()
+  is_published?: boolean;
+}
+
+export class ModuleListItemDto {
+  @ApiProperty({ description: 'Module ID' })
+  id: string;
+
+  @ApiProperty({ description: 'Module title' })
+  title: string;
+
+  @ApiProperty({ description: 'Module description' })
+  description?: string;
+
+  @ApiProperty({ description: 'Date created' })
+  created_at: Date;
+
+  @ApiProperty({ description: 'Date updated' })
+  updated_at: Date;
+
+  @ApiProperty({ description: 'Number of lessons' })
+  lessons_count: number;
+
+  @ApiProperty({ description: 'Number of activities' })
+  activities_count: number;
+}
+
+export class ModuleListQueryDto {
+  @ApiProperty({ description: 'Number of records to skip', required: false, default: 0 })
+  @IsInt()
+  @Min(0)
+  @IsOptional()
+  @Type(() => Number)
+  offset?: number = 0;
+
+  @ApiProperty({ description: 'Number of records to take', required: false, default: 10 })
+  @IsInt()
+  @Min(1)
+  @IsOptional()
+  @Type(() => Number)
+  limit?: number = 10;
+
+  @ApiProperty({ description: 'Search by title or description', required: false })
+  @IsString()
+  @IsOptional()
+  search?: string;
+}
+
+export class PaginatedModuleListResponseDto {
+  @ApiProperty({ description: 'Array of modules', type: [ModuleListItemDto] })
+  modules: ModuleListItemDto[];
+
+  @ApiProperty({ description: 'Total count' })
+  total: number;
+
+  @ApiProperty({ description: 'Current page offset' })
+  offset: number;
+
+  @ApiProperty({ description: 'Current page limit' })
+  limit: number;
+
+  @ApiProperty({ description: 'Has next page' })
+  hasNext: boolean;
+
+  @ApiProperty({ description: 'Has previous page' })
+  hasPrevious: boolean;
+}

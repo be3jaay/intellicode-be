@@ -8,6 +8,10 @@ import {
   CourseQueryDto, 
   PaginatedCoursesResponseDto
 } from './dto/create-course.dto';
+import { 
+  CourseViewResponseDto, 
+  LessonProgressUpdateDto 
+} from './dto/course-view.dto';
 import { UpdateCourseDto, UpdateCourseResponseDto } from './dto/update-course.dto';
 import { CurrentUser } from '@/common/decorators/current-user.decorator';
 import { RequestUser } from '../auth/interfaces/user.interface';
@@ -35,6 +39,7 @@ import {
 import { 
   CreateLessonDto, 
   BulkCreateLessonsDto, 
+  BulkCreateLessonsFromObjectDto,
   LessonResponseDto 
 } from './dto/lesson.dto';
 import { 
@@ -55,7 +60,11 @@ import {
   ModuleResponseDto, 
   ModuleQueryDto, 
   PaginatedModulesResponseDto,
-  BulkCreateModulesDto 
+  BulkCreateModulesDto,
+  BulkCreateModuleItemDto,
+  ModuleListItemDto,
+  ModuleListQueryDto,
+  PaginatedModuleListResponseDto
 } from './dto/module.dto';
 import { AssignmentService } from './assignment.service';
 import { 
@@ -70,6 +79,7 @@ import {
   ManualGradingDto,
   AssignmentGradingResponseDto
 } from './dto/assignment.dto';
+import { ProgressService } from './progress.service';
 
 @Controller('course')
 export class CourseController {
@@ -80,7 +90,8 @@ export class CourseController {
     private readonly adminService: AdminService,
     private readonly fileStorageService: FileStorageService,
     private readonly moduleService: ModuleService,
-    private readonly assignmentService: AssignmentService
+    private readonly assignmentService: AssignmentService,
+    private readonly progressService: ProgressService
   ) {}
 
   @Roles('teacher')
@@ -229,11 +240,13 @@ export class CourseController {
   @Roles('teacher')
   @UseGuards(JwtAuthGuard, RolesGuard)
   @ApiBearerAuth('JWT-auth')
-  @Post('modules/:moduleId/lessons')
+  @Post(':courseId/modules/:moduleId/lessons')
   @ApiOperation({ summary: 'Create a lesson in a module' })
+  @ApiParam({ name: 'courseId', description: 'Course ID' })
   @ApiParam({ name: 'moduleId', description: 'Module ID' })
   @ApiResponse({ status: HttpStatus.CREATED, description: 'Lesson created successfully', type: LessonResponseDto })
   async createLesson(
+    @Param('courseId') courseId: string,
     @Param('moduleId') moduleId: string,
     @Body() createLessonDto: CreateLessonDto,
     @CurrentUser() user: RequestUser
@@ -244,16 +257,35 @@ export class CourseController {
   @Roles('teacher')
   @UseGuards(JwtAuthGuard, RolesGuard)
   @ApiBearerAuth('JWT-auth')
-  @Post('modules/:moduleId/lessons/bulk')
+  @Post(':courseId/modules/:moduleId/lessons/bulk')
   @ApiOperation({ summary: 'Bulk create lessons in a module' })
+  @ApiParam({ name: 'courseId', description: 'Course ID' })
   @ApiParam({ name: 'moduleId', description: 'Module ID' })
   @ApiResponse({ status: HttpStatus.CREATED, description: 'Lessons created successfully', type: [LessonResponseDto] })
   async bulkCreateLessons(
+    @Param('courseId') courseId: string,
     @Param('moduleId') moduleId: string,
     @Body() bulkCreateDto: Omit<BulkCreateLessonsDto, 'module_id'>,
     @CurrentUser() user: RequestUser
   ) {
     return await this.lessonService.bulkCreateLessons({ ...bulkCreateDto, module_id: moduleId }, user.id);
+  }
+
+  @Roles('teacher')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @ApiBearerAuth('JWT-auth')
+  @Post(':courseId/modules/:moduleId/lessons/bulk-object')
+  @ApiOperation({ summary: 'Bulk create lessons from object format in a module' })
+  @ApiParam({ name: 'courseId', description: 'Course ID' })
+  @ApiParam({ name: 'moduleId', description: 'Module ID' })
+  @ApiResponse({ status: HttpStatus.CREATED, description: 'Lessons created successfully', type: [LessonResponseDto] })
+  async bulkCreateLessonsFromObject(
+    @Param('courseId') courseId: string,
+    @Param('moduleId') moduleId: string,
+    @Body() bulkCreateDto: Omit<BulkCreateLessonsFromObjectDto, 'module_id'>,
+    @CurrentUser() user: RequestUser
+  ) {
+    return await this.lessonService.bulkCreateLessonsFromObject({ ...bulkCreateDto, module_id: moduleId }, user.id);
   }
 
   @Roles('teacher')
@@ -487,10 +519,29 @@ export class CourseController {
   @HttpCode(HttpStatus.CREATED)
   async bulkCreateModules(
     @Param('courseId') courseId: string,
-    @Body() bulkCreateDto: Omit<BulkCreateModulesDto, 'course_id'>,
+    @Body() modules: BulkCreateModuleItemDto[],
     @CurrentUser() user: RequestUser
   ) {
-    return await this.moduleService.bulkCreateModules({ ...bulkCreateDto, course_id: courseId }, user.id);
+    return await this.moduleService.bulkCreateModules({ course_id: courseId, modules }, user.id);
+  }
+
+  @Get(':courseId/modules/list')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('teacher', 'student')
+  @ApiBearerAuth('JWT-auth')
+  @ApiOperation({ summary: 'Get modules list with counts for a course' })
+  @ApiParam({ name: 'courseId', description: 'Course ID' })
+  @ApiQuery({ name: 'offset', required: false, type: Number, description: 'Number of records to skip' })
+  @ApiQuery({ name: 'limit', required: false, type: Number, description: 'Number of records to take' })
+  @ApiQuery({ name: 'search', required: false, type: String, description: 'Search by title or description' })
+  @ApiResponse({ status: HttpStatus.OK, description: 'Modules list retrieved successfully', type: PaginatedModuleListResponseDto })
+  @ApiResponse({ status: HttpStatus.NOT_FOUND, description: 'Course not found' })
+  async getCourseModulesList(
+    @Param('courseId') courseId: string,
+    @Query() query: ModuleListQueryDto,
+    @CurrentUser() user: RequestUser
+  ) {
+    return await this.moduleService.getCourseModulesList(courseId, query, user.id);
   }
 
   // Assignment endpoints
@@ -740,5 +791,46 @@ export class CourseController {
     @CurrentUser() user: RequestUser
   ) {
     return await this.enrollmentService.getCourseProgress(courseId, user.id);
+  }
+
+  // Student course view endpoints
+  @Get(':courseId/student-view')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('student')
+  @ApiBearerAuth('JWT-auth')
+  @ApiOperation({ summary: 'Get complete course view for student with progress tracking' })
+  @ApiParam({ name: 'courseId', description: 'Course ID' })
+  @ApiResponse({ status: HttpStatus.OK, description: 'Course view retrieved successfully', type: CourseViewResponseDto })
+  @ApiResponse({ status: HttpStatus.NOT_FOUND, description: 'Course not found or not enrolled' })
+  @ApiResponse({ status: HttpStatus.FORBIDDEN, description: 'You do not have permission to view this course' })
+  async getStudentCourseView(
+    @Param('courseId') courseId: string,
+    @CurrentUser() user: RequestUser
+  ) {
+    return await this.progressService.getStudentCourseProgress(user.id, courseId);
+  }
+
+  @Post(':courseId/lessons/:lessonId/progress')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('student')
+  @ApiBearerAuth('JWT-auth')
+  @ApiOperation({ summary: 'Update lesson progress for student' })
+  @ApiParam({ name: 'courseId', description: 'Course ID' })
+  @ApiParam({ name: 'lessonId', description: 'Lesson ID' })
+  @ApiResponse({ status: HttpStatus.OK, description: 'Lesson progress updated successfully' })
+  @ApiResponse({ status: HttpStatus.NOT_FOUND, description: 'Lesson not found or not enrolled' })
+  @ApiResponse({ status: HttpStatus.FORBIDDEN, description: 'You do not have permission to update progress' })
+  async updateLessonProgress(
+    @Param('courseId') courseId: string,
+    @Param('lessonId') lessonId: string,
+    @Body() progressDto: LessonProgressUpdateDto,
+    @CurrentUser() user: RequestUser
+  ) {
+    return await this.progressService.updateLessonProgress(
+      user.id,
+      lessonId,
+      progressDto.completion_percentage,
+      progressDto.is_completed
+    );
   }
 }

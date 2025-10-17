@@ -6,6 +6,7 @@ import { SupabaseService } from '@/core/supabase/supabase.service';
 import { v4 as uuidv4 } from 'uuid';
 import { EnrollmentService } from './enrollment.service';
 import { UuidValidator } from '@/common/utils/uuid.validator';
+import { Course } from '@prisma/client';
 
 @Injectable()
 export class CourseService {
@@ -129,6 +130,16 @@ export class CourseService {
       totalPages,
       currentPage
     };
+  }
+
+  async findThreeLatestCourses(): Promise<Course[]> {
+    const courses = await this.prisma.course.findMany({
+      orderBy: {
+        created_at: 'desc'
+      },
+      take: 3
+    });
+    return courses;
   }
 
   async findAllByInstructor(query: CourseQueryDto, instructor_id: string): Promise<CourseQueryByInstructorDto> {

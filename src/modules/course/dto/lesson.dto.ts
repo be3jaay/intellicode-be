@@ -1,7 +1,13 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { IsString, IsNotEmpty, IsOptional, IsEnum, IsBoolean, IsInt, IsArray, ValidateNested } from 'class-validator';
+import { IsString, IsNotEmpty, IsOptional, IsEnum, IsBoolean, IsInt, IsArray, ValidateNested, IsNumber, IsObject } from 'class-validator';
 import { Type } from 'class-transformer';
-import { LessonType } from '@prisma/client';
+
+// Add new enum for lesson difficulty
+export enum LessonDifficulty {
+  BEGINNER = 'beginner',
+  INTERMEDIATE = 'intermediate',
+  ADVANCED = 'advanced'
+}
 
 export class CreateLessonDto {
   @ApiProperty({ description: 'Lesson title' })
@@ -19,11 +25,6 @@ export class CreateLessonDto {
   @IsOptional()
   content?: string;
 
-  @ApiProperty({ enum: LessonType, description: 'Lesson type' })
-  @IsEnum(LessonType)
-  @IsOptional()
-  lesson_type?: LessonType = LessonType.content;
-
   @ApiProperty({ description: 'Order index within the module' })
   @IsInt()
   order_index: number;
@@ -32,6 +33,22 @@ export class CreateLessonDto {
   @IsBoolean()
   @IsOptional()
   is_published?: boolean = false;
+
+  @ApiProperty({ enum: LessonDifficulty, description: 'Lesson difficulty level', required: false })
+  @IsEnum(LessonDifficulty)
+  @IsOptional()
+  difficulty?: LessonDifficulty = LessonDifficulty.BEGINNER;
+
+  @ApiProperty({ description: 'Estimated duration in minutes', required: false })
+  @IsNumber()
+  @IsOptional()
+  estimated_duration?: number;
+
+  @ApiProperty({ description: 'Lesson tags', required: false, type: [String] })
+  @IsArray()
+  @IsString({ each: true })
+  @IsOptional()
+  tags?: string[] = [];
 }
 
 export class BulkCreateLessonsDto {
@@ -50,6 +67,40 @@ export class BulkCreateLessonsDto {
   lessons: CreateLessonDto[];
 }
 
+export class BulkCreateLessonsFromObjectDto {
+  @ApiProperty({ description: 'Module ID' })
+  @IsString()
+  @IsNotEmpty()
+  module_id: string;
+
+  @ApiProperty({ 
+    description: 'Object containing lessons with numeric keys',
+    example: {
+      "0": { 
+        title: "Lesson 1", 
+        description: "Desc 1", 
+        content: "Content 1", 
+        order: 1,
+        difficulty: "beginner",
+        estimatedDuration: 25,
+        isPublished: true,
+        tags: ["javascript", "react"]
+      }
+    }
+  })
+  @IsObject()
+  lessons: Record<string, {
+    title: string;
+    description?: string;
+    content?: string;
+    order: number;
+    difficulty?: string;
+    estimatedDuration?: number;
+    isPublished?: boolean;
+    tags?: string[];
+  }>;
+}
+
 export class LessonResponseDto {
   @ApiProperty({ description: 'Lesson ID' })
   id: string;
@@ -66,14 +117,21 @@ export class LessonResponseDto {
   @ApiProperty({ description: 'Lesson content' })
   content?: string;
 
-  @ApiProperty({ enum: LessonType, description: 'Lesson type' })
-  lesson_type: LessonType;
 
   @ApiProperty({ description: 'Order index' })
   order_index: number;
 
   @ApiProperty({ description: 'Is published' })
   is_published: boolean;
+
+  @ApiProperty({ enum: LessonDifficulty, description: 'Lesson difficulty' })
+  difficulty: LessonDifficulty;
+
+  @ApiProperty({ description: 'Estimated duration in minutes' })
+  estimated_duration?: number;
+
+  @ApiProperty({ description: 'Lesson tags', type: [String] })
+  tags: string[];
 
   @ApiProperty({ description: 'Created date' })
   created_at: Date;
