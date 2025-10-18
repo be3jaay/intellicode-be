@@ -14,6 +14,10 @@ export type UserProfile = {
   student_number: string | null;
   section: string | null;
   profile_picture: string | null;
+  is_suspended: boolean;
+  suspension_reason: string | null;
+  is_approved: boolean;
+  approval_reason: string | null;
   created_at: Date;
   updated_at: Date;
 };

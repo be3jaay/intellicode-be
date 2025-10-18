@@ -14,7 +14,7 @@ export class AuthService {
   ) {}
 
   async signup(signupDto: SignupDto): Promise<AuthResponseDto> {
-    const { email, password, firstName, middleName, lastName, studentNumber, section } = signupDto;
+    const { email, password, firstName, middleName, lastName, studentNumber, section, userType } = signupDto;
 
     // Check if user already exists in database
     const existingUser = await this.prisma.user.findUnique({
@@ -30,7 +30,7 @@ export class AuthService {
       password,
       options: {
         data: {
-          role: UserRole.student,
+          role: userType,
           first_name: firstName,
           middle_name: middleName,
           last_name: lastName,
@@ -48,6 +48,7 @@ export class AuthService {
 
     // Create profile in profiles table using Prisma
     try {
+      const isApproved = userType === UserRole.student; // Students are auto-approved, teachers need approval
       await this.prisma.user.create({
         data: {
           id: authData.user.id,
@@ -55,14 +56,34 @@ export class AuthService {
           first_name: firstName,
           middle_name: middleName,
           last_name: lastName,
-          role: UserRole.student,
+          role: userType,
           student_number: studentNumber,
           section: section,
+          is_approved: isApproved,
+          approval_reason: isApproved ? 'Auto-approved for student registration' : null,
         },
       });
     } catch (error) {
       // If profile creation fails, clean up the auth user
       throw new BadRequestException(`Profile creation failed: ${error.message}`);
+    }
+
+    // For teachers, don't return tokens - they need approval
+    if (userType === UserRole.teacher) {
+      return {
+        accessToken: '',
+        refreshToken: '',
+        user: {
+          id: authData.user.id,
+          email: authData.user.email || '',
+          role: userType,
+          firstName: firstName,
+          middleName: middleName,
+          lastName: lastName,
+        },
+        message: 'Registration successful. Please wait for admin approval before you can log in.',
+        requiresApproval: true,
+      };
     }
 
     return {
@@ -71,7 +92,7 @@ export class AuthService {
       user: {
         id: authData.user.id,
         email: authData.user.email || '',
-        role: UserRole.student,
+        role: userType,
         firstName: firstName,
         middleName: middleName,
         lastName: lastName,
@@ -102,6 +123,16 @@ export class AuthService {
 
     if (!profile) {
       throw new UnauthorizedException('User profile not found');
+    }
+
+    // Check if user is suspended
+    if (profile.is_suspended) {
+      throw new UnauthorizedException('Account is suspended. Please contact administrator.');
+    }
+
+    // Check if teacher is approved
+    if (profile.role === UserRole.teacher && !profile.is_approved) {
+      throw new UnauthorizedException('Account pending approval. Please wait for admin approval.');
     }
 
     return {

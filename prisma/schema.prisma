@@ -186,6 +186,10 @@ model User {
   student_number  String?
   section         String?
   profile_picture String?
+  is_suspended    Boolean      @default(false)
+  suspension_reason String?
+  is_approved     Boolean      @default(true)
+  approval_reason String?
   created_at      DateTime     @default(now())
   updated_at      DateTime     @updatedAt
   courses         Course[]     @relation("InstructorCourses")
@@ -197,6 +201,8 @@ model User {
   @@index([email])
   @@index([role])
   @@index([student_number])
+  @@index([is_suspended])
+  @@index([is_approved])
   @@map("users")
 }
 

@@ -19,6 +19,9 @@ import {
 import { UsersService } from './users.service';
 import { UpdateProfileDto } from './dto/update-profile.dto';
 import { UpdateRoleDto } from './dto/update-role.dto';
+import { SuspendUserDto } from './dto/suspend-user.dto';
+import { ApproveInstructorDto } from './dto/approve-instructor.dto';
+import { UserManagementQueryDto } from './dto/user-management-query.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '@/common/guards/roles.guard';
 import { Roles } from '@/common/decorators/roles.decorator';
@@ -34,11 +37,11 @@ export class UsersController {
 
   @Get()
   @Roles(UserRole.admin, UserRole.teacher)
-  @ApiOperation({ summary: 'Get all users (Admin & Teacher only)' })
-  @ApiResponse({ status: 200, description: 'List of all users' })
+  @ApiOperation({ summary: 'Get all users with filtering and pagination (Admin & Teacher only)' })
+  @ApiResponse({ status: 200, description: 'List of users with pagination' })
   @ApiResponse({ status: 403, description: 'Forbidden - insufficient permissions' })
-  async getAllUsers() {
-    return this.usersService.getAllUsers();
+  async getAllUsers(@Query() query: UserManagementQueryDto) {
+    return this.usersService.getAllUsers(query);
   }
 
   @Get('by-role')
@@ -108,6 +111,58 @@ export class UsersController {
   @ApiResponse({ status: 403, description: 'Forbidden - admin only' })
   async deleteUser(@Param('id') id: string) {
     return this.usersService.deleteUser(id);
+  }
+
+  @Put(':id/suspend')
+  @Roles(UserRole.admin)
+  @ApiOperation({
+    summary: 'Suspend/Unsuspend user (Admin only)',
+    description: 'Suspend or unsuspend a user account',
+  })
+  @ApiParam({ name: 'id', description: 'User ID (UUID)' })
+  @ApiResponse({ status: 200, description: 'User suspension status updated successfully' })
+  @ApiResponse({ status: 403, description: 'Forbidden - admin only' })
+  @ApiResponse({ status: 404, description: 'User not found' })
+  async suspendUser(@Param('id') id: string, @Body() suspendUserDto: SuspendUserDto) {
+    return this.usersService.suspendUser(id, suspendUserDto);
+  }
+
+  @Put(':id/approve')
+  @Roles(UserRole.admin)
+  @ApiOperation({
+    summary: 'Approve/Reject instructor (Admin only)',
+    description: 'Approve or reject an instructor account',
+  })
+  @ApiParam({ name: 'id', description: 'User ID (UUID)' })
+  @ApiResponse({ status: 200, description: 'Instructor approval status updated successfully' })
+  @ApiResponse({ status: 403, description: 'Forbidden - admin only' })
+  @ApiResponse({ status: 404, description: 'User not found' })
+  async approveInstructor(@Param('id') id: string, @Body() approveInstructorDto: ApproveInstructorDto) {
+    return this.usersService.approveInstructor(id, approveInstructorDto);
+  }
+
+  @Get('pending-approval')
+  @Roles(UserRole.admin)
+  @ApiOperation({
+    summary: 'Get pending instructor approvals (Admin only)',
+    description: 'Get list of instructors waiting for approval',
+  })
+  @ApiResponse({ status: 200, description: 'List of pending instructor approvals' })
+  @ApiResponse({ status: 403, description: 'Forbidden - admin only' })
+  async getPendingApprovals() {
+    return this.usersService.getPendingApprovals();
+  }
+
+  @Get('suspended')
+  @Roles(UserRole.admin)
+  @ApiOperation({
+    summary: 'Get suspended users (Admin only)',
+    description: 'Get list of all suspended users',
+  })
+  @ApiResponse({ status: 200, description: 'List of suspended users' })
+  @ApiResponse({ status: 403, description: 'Forbidden - admin only' })
+  async getSuspendedUsers() {
+    return this.usersService.getSuspendedUsers();
   }
 }
 

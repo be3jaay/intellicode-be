@@ -1,5 +1,6 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { IsEmail, IsString, MinLength, IsOptional } from 'class-validator';
+import { IsEmail, IsString, MinLength, IsOptional, IsEnum } from 'class-validator';
+import { UserRole } from '@prisma/client';
 
 export class SignupDto {
   @ApiProperty({
@@ -58,5 +59,13 @@ export class SignupDto {
   @IsString()
   @IsOptional()
   section?: string;
+
+  @ApiProperty({
+    example: 'student',
+    description: 'User type - student or teacher',
+    enum: UserRole,
+  })
+  @IsEnum(UserRole)
+  userType: UserRole;
 }
 

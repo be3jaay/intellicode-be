@@ -3,6 +3,9 @@ import { PrismaService } from '@/core/prisma/prisma.service';
 import { SupabaseService } from '@/core/supabase/supabase.service';
 import { UpdateProfileDto } from './dto/update-profile.dto';
 import { UpdateRoleDto } from './dto/update-role.dto';
+import { SuspendUserDto } from './dto/suspend-user.dto';
+import { ApproveInstructorDto } from './dto/approve-instructor.dto';
+import { UserManagementQueryDto } from './dto/user-management-query.dto';
 import { UserProfile, UserRole } from '../auth/interfaces/user.interface';
 
 @Injectable()
@@ -12,12 +15,47 @@ export class UsersService {
     private readonly supabaseService: SupabaseService,
   ) {}
 
-  async getAllUsers(): Promise<UserProfile[]> {
-    const profiles = await this.prisma.user.findMany({
-      orderBy: { created_at: 'desc' },
-    });
+  async getAllUsers(query: UserManagementQueryDto): Promise<{ users: UserProfile[]; total: number; page: number; limit: number }> {
+    const { role, search, isSuspended, page = 1, limit = 10 } = query;
+    const pageNum = Number(page);
+    const limitNum = Number(limit);
+    const skip = (pageNum - 1) * limitNum;
 
-    return profiles;
+    const where: any = {};
+
+    if (role) {
+      where.role = role;
+    }
+
+    if (isSuspended !== undefined) {
+      where.is_suspended = isSuspended;
+    }
+
+    if (search) {
+      where.OR = [
+        { first_name: { contains: search, mode: 'insensitive' } },
+        { last_name: { contains: search, mode: 'insensitive' } },
+        { email: { contains: search, mode: 'insensitive' } },
+        { student_number: { contains: search, mode: 'insensitive' } },
+      ];
+    }
+
+    const [users, total] = await Promise.all([
+      this.prisma.user.findMany({
+        where,
+        skip,
+        take: limitNum,
+        orderBy: { created_at: 'desc' },
+      }),
+      this.prisma.user.count({ where }),
+    ]);
+
+    return {
+      users,
+      total,
+      page: pageNum,
+      limit: limitNum,
+    };
   }
 
   async getUserById(userId: string): Promise<UserProfile> {
@@ -134,6 +172,71 @@ export class UsersService {
   async getUsersByRole(role: UserRole): Promise<UserProfile[]> {
     const profiles = await this.prisma.user.findMany({
       where: { role },
+      orderBy: { created_at: 'desc' },
+    });
+
+    return profiles;
+  }
+
+  async suspendUser(userId: string, suspendUserDto: SuspendUserDto): Promise<UserProfile> {
+    const { isSuspended, reason } = suspendUserDto;
+
+    try {
+      const user = await this.prisma.user.update({
+        where: { id: userId },
+        data: {
+          is_suspended: isSuspended,
+          suspension_reason: reason || null,
+        },
+      });
+
+      return user;
+    } catch (error) {
+      if (error.code === 'P2025') {
+        throw new NotFoundException('User not found');
+      }
+      throw new Error(`Failed to update user suspension status: ${error.message}`);
+    }
+  }
+
+  async approveInstructor(userId: string, approveInstructorDto: ApproveInstructorDto): Promise<UserProfile> {
+    const { isApproved, reason } = approveInstructorDto;
+
+    try {
+      const user = await this.prisma.user.update({
+        where: { id: userId },
+        data: {
+          is_approved: isApproved,
+          approval_reason: reason || null,
+        },
+      });
+
+      return user;
+    } catch (error) {
+      if (error.code === 'P2025') {
+        throw new NotFoundException('User not found');
+      }
+      throw new Error(`Failed to update instructor approval status: ${error.message}`);
+    }
+  }
+
+  async getPendingApprovals(): Promise<UserProfile[]> {
+    const profiles = await this.prisma.user.findMany({
+      where: {
+        role: UserRole.teacher,
+        is_approved: false,
+      },
+      orderBy: { created_at: 'desc' },
+    });
+
+    return profiles;
+  }
+
+  async getSuspendedUsers(): Promise<UserProfile[]> {
+    const profiles = await this.prisma.user.findMany({
+      where: {
+        is_suspended: true,
+      },
       orderBy: { created_at: 'desc' },
     });
 

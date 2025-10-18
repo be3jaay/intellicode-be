@@ -32,5 +32,19 @@ export class AuthResponseDto {
     middleName: string | null;
     lastName: string;
   };
+
+  @ApiProperty({
+    example: 'Registration successful. Please wait for admin approval before you can log in.',
+    description: 'Message for user (optional)',
+    required: false,
+  })
+  message?: string;
+
+  @ApiProperty({
+    example: true,
+    description: 'Whether the user requires approval',
+    required: false,
+  })
+  requiresApproval?: boolean;
 }
 
