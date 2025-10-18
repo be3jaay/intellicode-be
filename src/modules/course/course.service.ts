@@ -112,6 +112,12 @@ export class CourseService {
             last_name: true,
             email: true,
           }
+        },
+        _count: {
+          select: { 
+            enrollments: true,
+            modules: true
+          }
         }
       },
       orderBy: {
@@ -122,8 +128,15 @@ export class CourseService {
     const totalPages = Math.ceil(total / limit);
     const currentPage = Math.floor(offset / limit) + 1;
 
+    // Format courses with count data
+    const formattedCourses = courses.map(course => ({
+      ...course,
+      students_count: course._count.enrollments,
+      modules_count: course._count.modules
+    }));
+
     return {
-      data: courses,
+      data: formattedCourses,
       total,
       offset,
       limit,
@@ -134,12 +147,26 @@ export class CourseService {
 
   async findThreeLatestCourses(): Promise<Course[]> {
     const courses = await this.prisma.course.findMany({
+      include: {
+        _count: {
+          select: { 
+            enrollments: true,
+            modules: true
+          }
+        }
+      },
       orderBy: {
         created_at: 'desc'
       },
       take: 3
     });
-    return courses;
+
+    // Format courses with count data
+    return courses.map(course => ({
+      ...course,
+      students_count: course._count.enrollments,
+      modules_count: course._count.modules
+    }));
   }
 
   async findAllByInstructor(query: CourseQueryDto, instructor_id: string): Promise<CourseQueryByInstructorDto> {
@@ -185,7 +212,10 @@ export class CourseService {
           }
         },
         _count: {
-          select: { enrollments: true }
+          select: { 
+            enrollments: true,
+            modules: true
+          }
         }
       },
       orderBy: {
@@ -196,8 +226,15 @@ export class CourseService {
     const totalPages = Math.ceil(total / limit);
     const currentPage = Math.floor(offset / limit) + 1;
 
+    // Format courses with count data
+    const formattedCourses = courses.map(course => ({
+      ...course,
+      students_count: course._count.enrollments,
+      modules_count: course._count.modules
+    }));
+
     return {
-      data: courses,
+      data: formattedCourses,
       instructor_id,
       total,
       offset, 

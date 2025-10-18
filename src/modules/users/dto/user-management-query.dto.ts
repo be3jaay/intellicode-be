@@ -1,7 +1,7 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { IsOptional, IsString, IsEnum, IsBoolean, IsNumberString } from 'class-validator';
+import { IsOptional, IsString, IsEnum, IsBoolean, IsNumberString, IsNumber } from 'class-validator';
 import { UserRole } from '@prisma/client';
-import { Transform } from 'class-transformer';
+import { Transform, Type } from 'class-transformer';
 
 export class UserManagementQueryDto {
   @ApiProperty({
@@ -38,8 +38,8 @@ export class UserManagementQueryDto {
     required: false,
   })
   @IsOptional()
-  @IsNumberString()
-  @Transform(({ value }) => parseInt(value))
+  @Type(() => Number)
+  @IsNumber()
   page?: number = 1;
 
   @ApiProperty({
@@ -48,7 +48,7 @@ export class UserManagementQueryDto {
     required: false,
   })
   @IsOptional()
-  @IsNumberString()
-  @Transform(({ value }) => parseInt(value))
+  @Type(() => Number)
+  @IsNumber()
   limit?: number = 10;
 }

@@ -68,6 +68,11 @@ export class BulkCreateLessonsDto {
 }
 
 export class BulkCreateLessonsFromObjectDto {
+  @ApiProperty({ description: 'Course ID' })
+  @IsString()
+  @IsNotEmpty()
+  course_id: string;
+
   @ApiProperty({ description: 'Module ID' })
   @IsString()
   @IsNotEmpty()

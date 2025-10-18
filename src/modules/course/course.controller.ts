@@ -282,10 +282,10 @@ export class CourseController {
   async bulkCreateLessonsFromObject(
     @Param('courseId') courseId: string,
     @Param('moduleId') moduleId: string,
-    @Body() bulkCreateDto: Omit<BulkCreateLessonsFromObjectDto, 'module_id'>,
+    @Body() bulkCreateDto: Omit<BulkCreateLessonsFromObjectDto, 'module_id' | 'course_id'>,
     @CurrentUser() user: RequestUser
   ) {
-    return await this.lessonService.bulkCreateLessonsFromObject({ ...bulkCreateDto, module_id: moduleId }, user.id);
+    return await this.lessonService.bulkCreateLessonsFromObject({ ...bulkCreateDto, course_id: courseId, module_id: moduleId }, user.id);
   }
 
   @Roles('teacher')

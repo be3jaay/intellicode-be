@@ -58,6 +58,30 @@ export class UsersController {
     return this.usersService.getUsersByRole(role);
   }
 
+  @Get('pending-approval')
+  @Roles(UserRole.admin)
+  @ApiOperation({
+    summary: 'Get pending instructor approvals (Admin only)',
+    description: 'Get list of instructors waiting for approval',
+  })
+  @ApiResponse({ status: 200, description: 'List of pending instructor approvals' })
+  @ApiResponse({ status: 403, description: 'Forbidden - admin only' })
+  async getPendingApprovals() {
+    return this.usersService.getPendingApprovals();
+  }
+
+  @Get('suspended')
+  @Roles(UserRole.admin)
+  @ApiOperation({
+    summary: 'Get suspended users (Admin only)',
+    description: 'Get list of all suspended users',
+  })
+  @ApiResponse({ status: 200, description: 'List of suspended users' })
+  @ApiResponse({ status: 403, description: 'Forbidden - admin only' })
+  async getSuspendedUsers() {
+    return this.usersService.getSuspendedUsers();
+  }
+
   @Get(':id')
   @Roles(UserRole.admin, UserRole.teacher, UserRole.student)
   @ApiOperation({ summary: 'Get user by ID' })
@@ -139,30 +163,6 @@ export class UsersController {
   @ApiResponse({ status: 404, description: 'User not found' })
   async approveInstructor(@Param('id') id: string, @Body() approveInstructorDto: ApproveInstructorDto) {
     return this.usersService.approveInstructor(id, approveInstructorDto);
-  }
-
-  @Get('pending-approval')
-  @Roles(UserRole.admin)
-  @ApiOperation({
-    summary: 'Get pending instructor approvals (Admin only)',
-    description: 'Get list of instructors waiting for approval',
-  })
-  @ApiResponse({ status: 200, description: 'List of pending instructor approvals' })
-  @ApiResponse({ status: 403, description: 'Forbidden - admin only' })
-  async getPendingApprovals() {
-    return this.usersService.getPendingApprovals();
-  }
-
-  @Get('suspended')
-  @Roles(UserRole.admin)
-  @ApiOperation({
-    summary: 'Get suspended users (Admin only)',
-    description: 'Get list of all suspended users',
-  })
-  @ApiResponse({ status: 200, description: 'List of suspended users' })
-  @ApiResponse({ status: 403, description: 'Forbidden - admin only' })
-  async getSuspendedUsers() {
-    return this.usersService.getSuspendedUsers();
   }
 }
 

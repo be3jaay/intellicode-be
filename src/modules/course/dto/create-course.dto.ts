@@ -116,6 +116,20 @@ export class CreateCourseResponseDto {
     instructor_id: string;
 
     @ApiProperty({
+        example: 25,
+        description: 'Number of students enrolled in the course',
+    })
+    @IsNumber()
+    students_count: number;
+
+    @ApiProperty({
+        example: 8,
+        description: 'Number of modules in the course',
+    })
+    @IsNumber()
+    modules_count: number;
+
+    @ApiProperty({
         example: '2024-01-15T10:30:00Z',
         description: 'The created at timestamp of the course',
     })

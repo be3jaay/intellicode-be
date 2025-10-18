@@ -164,16 +164,16 @@ export class LessonService {
     }
 
     // Convert object format to array format with new fields
-    const lessonsArray = Object.values(bulkCreateDto.lessons).map(lesson => ({
+    const lessonsArray = Object.values(bulkCreateDto.lessons).map((lesson, index) => ({
       id: uuidv4(),
       module_id: bulkCreateDto.module_id,
       title: lesson.title,
       description: lesson.description,
       content: lesson.content,
-      order_index: lesson.order,
+      order_index: lesson.order ?? index + 1, // Use provided order or default to index + 1
       is_published: lesson.isPublished || false,
       difficulty: (lesson.difficulty as LessonDifficulty) || LessonDifficulty.BEGINNER,
-      estimated_duration: lesson.estimatedDuration || undefined,
+      estimated_duration: lesson.estimatedDuration || null,
       tags: lesson.tags || []
     }));
 

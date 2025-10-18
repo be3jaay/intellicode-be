@@ -179,6 +179,38 @@ export class BulkCreateModuleItemDto {
   is_published?: boolean;
 }
 
+export class LessonSummaryDto {
+  @ApiProperty({ description: 'Lesson ID' })
+  id: string;
+
+  @ApiProperty({ description: 'Lesson title' })
+  title: string;
+
+  @ApiProperty({ description: 'Lesson description' })
+  description?: string;
+
+  @ApiProperty({ description: 'Order index' })
+  order_index: number;
+
+  @ApiProperty({ description: 'Is published' })
+  is_published: boolean;
+
+  @ApiProperty({ description: 'Lesson difficulty' })
+  difficulty: string;
+
+  @ApiProperty({ description: 'Estimated duration in minutes' })
+  estimated_duration?: number;
+
+  @ApiProperty({ description: 'Lesson tags', type: [String] })
+  tags: string[];
+
+  @ApiProperty({ description: 'Created date' })
+  created_at: Date;
+
+  @ApiProperty({ description: 'Updated date' })
+  updated_at: Date;
+}
+
 export class ModuleListItemDto {
   @ApiProperty({ description: 'Module ID' })
   id: string;
@@ -200,6 +232,9 @@ export class ModuleListItemDto {
 
   @ApiProperty({ description: 'Number of activities' })
   activities_count: number;
+
+  @ApiProperty({ description: 'Lessons in this module', type: [LessonSummaryDto] })
+  lessons: LessonSummaryDto[];
 }
 
 export class ModuleListQueryDto {

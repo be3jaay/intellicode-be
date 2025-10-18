@@ -420,7 +420,7 @@ export class ModuleService {
       where: whereConditions
     });
 
-    // Get modules with counts
+    // Get modules with counts and lessons
     const modules = await this.prisma.module.findMany({
       where: whereConditions,
       select: {
@@ -433,6 +433,23 @@ export class ModuleService {
           select: {
             lessons: true,
             assignments: true
+          }
+        },
+        lessons: {
+          select: {
+            id: true,
+            title: true,
+            description: true,
+            order_index: true,
+            is_published: true,
+            difficulty: true,
+            estimated_duration: true,
+            tags: true,
+            created_at: true,
+            updated_at: true
+          },
+          orderBy: {
+            order_index: 'asc'
           }
         }
       },
@@ -451,7 +468,19 @@ export class ModuleService {
       created_at: module.created_at,
       updated_at: module.updated_at,
       lessons_count: module._count.lessons,
-      activities_count: module._count.assignments
+      activities_count: module._count.assignments,
+      lessons: module.lessons.map(lesson => ({
+        id: lesson.id,
+        title: lesson.title,
+        description: lesson.description,
+        order_index: lesson.order_index,
+        is_published: lesson.is_published,
+        difficulty: lesson.difficulty,
+        estimated_duration: lesson.estimated_duration,
+        tags: lesson.tags,
+        created_at: lesson.created_at,
+        updated_at: lesson.updated_at
+      }))
     }));
 
     return {
