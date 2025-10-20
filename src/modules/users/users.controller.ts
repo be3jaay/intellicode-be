@@ -27,6 +27,7 @@ import { RolesGuard } from '@/common/guards/roles.guard';
 import { Roles } from '@/common/decorators/roles.decorator';
 import { CurrentUser } from '@/common/decorators/current-user.decorator';
 import { UserRole, RequestUser } from '../auth/interfaces/user.interface';
+import { UuidValidator } from '@/common/utils/uuid.validator';
 
 @ApiTags('users')
 @Controller('users')
@@ -82,6 +83,15 @@ export class UsersController {
     return this.usersService.getSuspendedUsers();
   }
 
+  @Get('me')
+  @Roles(UserRole.admin, UserRole.teacher, UserRole.student)
+  @ApiOperation({ summary: 'Get current authenticated user profile' })
+  @ApiResponse({ status: 200, description: 'Current user profile data' })
+  @ApiResponse({ status: 401, description: 'Unauthorized' })
+  async getMe(@CurrentUser() user: RequestUser) {
+    return this.usersService.getUserById(user.id);
+  }
+
   @Get(':id')
   @Roles(UserRole.admin, UserRole.teacher, UserRole.student)
   @ApiOperation({ summary: 'Get user by ID' })
@@ -89,6 +99,7 @@ export class UsersController {
   @ApiResponse({ status: 200, description: 'User profile data' })
   @ApiResponse({ status: 404, description: 'User not found' })
   async getUserById(@Param('id') id: string) {
+    UuidValidator.validate(id, 'User ID');
     return this.usersService.getUserById(id);
   }
 

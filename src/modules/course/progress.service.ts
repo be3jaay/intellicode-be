@@ -248,6 +248,8 @@ export class ProgressService {
           title: assignment.title,
           description: assignment.description,
           assignment_type: assignment.assignment_type,
+          assignment_subtype: assignment.assignment_subtype,
+          difficulty: assignment.difficulty,
           points: assignment.points,
           due_date: assignment.due_date,
           is_published: assignment.is_published,
