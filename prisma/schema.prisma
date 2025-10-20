@@ -321,9 +321,13 @@ model Assignment {
   title         String
   description   String?
   assignment_type AssignmentType
+  assignment_subtype AssignmentSubtype
+  difficulty    DifficultyLevel  @default(easy)
   points        Int              @default(0)
   due_date      DateTime?
   is_published  Boolean          @default(false)
+  secured_browser Boolean        @default(false)
+  starter_code  String?
   created_at    DateTime         @default(now())
   updated_at    DateTime         @updatedAt
   module        Module           @relation("ModuleAssignments", fields: [module_id], references: [id])
@@ -333,8 +337,11 @@ model Assignment {
 
   @@index([module_id])
   @@index([assignment_type])
+  @@index([assignment_subtype])
+  @@index([difficulty])
   @@index([is_published])
   @@index([due_date])
+  @@index([secured_browser])
   @@map("assignments")
 }
 
@@ -400,6 +407,13 @@ model AssignmentAnswer {
 }
 
 enum AssignmentType {
+  assignment
+  activity
+  exam
+}
+
+enum AssignmentSubtype {
+  code_sandbox
   quiz_form
   file_upload
 }

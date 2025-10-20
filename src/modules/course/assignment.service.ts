@@ -15,6 +15,8 @@ import {
   ManualGradingDto,
   AssignmentGradingResponseDto,
   AssignmentType,
+  AssignmentSubtype,
+  DifficultyLevel,
   ExamQuestionType
 } from './dto/assignment.dto';
 
@@ -45,19 +47,30 @@ export class AssignmentService {
       throw new NotFoundException('Module not found or you do not have permission to create assignments in this module');
     }
 
+    // Auto-enable secured browser for quiz and exam types
+    const securedBrowser = assignmentData.secured_browser || 
+      (assignmentData.assignmentType === AssignmentType.activity || assignmentData.assignmentType === AssignmentType.exam);
+
+    // Handle assignment subtype-specific logic
+    const processedData = this.processAssignmentData(assignmentData, questions);
+
     // Create assignment
     const assignment = await this.prisma.assignment.create({
       data: {
         id: uuidv4(),
         module_id: moduleId,
-        title: assignmentData.title,
-        description: assignmentData.description,
-        assignment_type: assignmentData.assignmentType,
-        points: assignmentData.points,
-        due_date: assignmentData.dueDate ? new Date(assignmentData.dueDate) : null,
+        title: processedData.title,
+        description: processedData.description,
+        assignment_type: processedData.assignmentType,
+        assignment_subtype: processedData.assignmentSubtype,
+        difficulty: processedData.difficulty,
+        points: processedData.points,
+        due_date: processedData.dueDate ? new Date(processedData.dueDate) : null,
         is_published: false,
-        questions: questions ? {
-          create: questions.map((question, index) => ({
+        secured_browser: securedBrowser,
+        starter_code: processedData.starterCode,
+        questions: processedData.questions ? {
+          create: processedData.questions.map((question, index) => ({
             id: uuidv4(),
             question_text: question.question,
             question_type: question.type,
@@ -80,7 +93,7 @@ export class AssignmentService {
     });
 
     // Handle file upload for file_upload assignments
-    if (assignmentData.assignmentType === AssignmentType.FILE_UPLOAD && attachment) {
+    if (assignmentData.assignmentSubtype === AssignmentSubtype.file_upload && attachment) {
       try {
         const fileUrl = await this.supabaseService.uploadFile(
           attachment,
@@ -135,19 +148,30 @@ export class AssignmentService {
       throw new NotFoundException('Module not found or you do not have permission to create assignments in this module');
     }
 
+    // Auto-enable secured browser for quiz and exam types
+    const securedBrowser = assignmentData.secured_browser || 
+      (assignmentData.assignmentType === AssignmentType.activity || assignmentData.assignmentType === AssignmentType.exam);
+
+    // Handle assignment subtype-specific logic
+    const processedData = this.processAssignmentData(assignmentData, questions);
+
     // Create assignment
     const assignment = await this.prisma.assignment.create({
       data: {
         id: uuidv4(),
         module_id: moduleId,
-        title: assignmentData.title,
-        description: assignmentData.description,
-        assignment_type: assignmentData.assignmentType,
-        points: assignmentData.points,
-        due_date: assignmentData.dueDate ? new Date(assignmentData.dueDate) : null,
+        title: processedData.title,
+        description: processedData.description,
+        assignment_type: processedData.assignmentType,
+        assignment_subtype: processedData.assignmentSubtype,
+        difficulty: processedData.difficulty,
+        points: processedData.points,
+        due_date: processedData.dueDate ? new Date(processedData.dueDate) : null,
         is_published: false,
-        questions: questions ? {
-          create: questions.map((question, index) => ({
+        secured_browser: securedBrowser,
+        starter_code: processedData.starterCode,
+        questions: processedData.questions ? {
+          create: processedData.questions.map((question, index) => ({
             id: uuidv4(),
             question_text: question.question,
             question_type: question.type,
@@ -225,7 +249,7 @@ export class AssignmentService {
       }
     }
 
-    const { offset = 0, limit = 10, assignment_type, is_published, search } = query;
+    const { offset = 0, limit = 10, assignment_type, assignment_subtype, difficulty, is_published, secured_browser, search } = query;
 
     const where: any = { module_id: moduleId };
 
@@ -233,8 +257,20 @@ export class AssignmentService {
       where.assignment_type = assignment_type;
     }
 
+    if (assignment_subtype) {
+      where.assignment_subtype = assignment_subtype;
+    }
+
+    if (difficulty) {
+      where.difficulty = difficulty;
+    }
+
     if (is_published !== undefined) {
       where.is_published = is_published;
+    }
+
+    if (secured_browser !== undefined) {
+      where.secured_browser = secured_browser;
     }
 
     if (search) {
@@ -333,16 +369,28 @@ export class AssignmentService {
 
     const { questions, ...assignmentData } = updateAssignmentDto;
 
+    // Auto-enable secured browser for quiz and exam types if not explicitly set
+    const securedBrowser = assignmentData.secured_browser !== undefined ? 
+      assignmentData.secured_browser : 
+      (assignmentData.assignmentType === AssignmentType.activity || assignmentData.assignmentType === AssignmentType.exam);
+
+    // Handle assignment subtype-specific logic
+    const processedData = this.processAssignmentData(assignmentData, questions);
+
     // Update assignment
     const assignment = await this.prisma.assignment.update({
       where: { id: assignmentId },
       data: {
-        ...assignmentData,
-        due_date: assignmentData.dueDate ? new Date(assignmentData.dueDate) : undefined,
-        assignment_type: assignmentData.assignmentType,
-        questions: questions ? {
+        ...processedData,
+        due_date: processedData.dueDate ? new Date(processedData.dueDate) : undefined,
+        assignment_type: processedData.assignmentType,
+        assignment_subtype: processedData.assignmentSubtype,
+        difficulty: processedData.difficulty,
+        secured_browser: securedBrowser,
+        starter_code: processedData.starterCode,
+        questions: processedData.questions ? {
           deleteMany: {},
-          create: questions.map((question, index) => ({
+          create: processedData.questions.map((question, index) => ({
             id: uuidv4(),
             question_text: question.question,
             question_type: question.type,
@@ -773,12 +821,16 @@ export class AssignmentService {
       title: assignment.title,
       description: assignment.description,
       assignmentType: assignment.assignment_type,
+      assignmentSubtype: assignment.assignment_subtype,
+      difficulty: assignment.difficulty,
       points: assignment.points,
       dueDate: assignment.due_date,
       is_published: assignment.is_published,
+      secured_browser: assignment.secured_browser,
       module_id: assignment.module_id,
       created_at: assignment.created_at,
       updated_at: assignment.updated_at,
+      attachments: assignment.attachments,
       questions: assignment.questions?.map(q => ({
         id: q.id,
         question: q.question_text,
@@ -791,8 +843,7 @@ export class AssignmentService {
         case_sensitive: q.case_sensitive,
         is_true: q.is_true
       })),
-      starterCode: assignment.starter_code,
-      testCases: assignment.test_cases
+      starterCode: assignment.starter_code
     };
   }
 
@@ -808,6 +859,38 @@ export class AssignmentService {
       answers: submission.answers,
       files: submission.files
     };
+  }
+
+  private processAssignmentData(assignmentData: any, questions: any[]): any {
+    const processedData = { ...assignmentData };
+
+    switch (assignmentData.assignmentSubtype) {
+      case AssignmentSubtype.code_sandbox:
+        // For code_sandbox: questions can be empty array, starterCode can be provided
+        processedData.questions = questions || [];
+        processedData.starterCode = assignmentData.starterCode || null;
+        break;
+
+      case AssignmentSubtype.quiz_form:
+        // For quiz_form: starterCode should be null, questions can be provided
+        processedData.questions = questions || [];
+        processedData.starterCode = null;
+        break;
+
+      case AssignmentSubtype.file_upload:
+        // For file_upload: starterCode should be null, questions can be empty
+        processedData.questions = questions || [];
+        processedData.starterCode = null;
+        break;
+
+      default:
+        // Default behavior
+        processedData.questions = questions || [];
+        processedData.starterCode = assignmentData.starterCode || null;
+        break;
+    }
+
+    return processedData;
   }
 
   private getFileTypeFromMime(mimeType: string): 'image' | 'video' | 'pdf' | 'document' {

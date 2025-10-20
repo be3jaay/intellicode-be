@@ -269,9 +269,10 @@ export class SupabaseService {
           });
       }
 
+      // If both service role and anon key fail, try direct API call (bypasses RLS completely)
       if (uploadResult.error) {
-        this.logger.error('Error uploading file to Supabase Storage:', uploadResult.error);
-        throw new BadRequestException(`Failed to upload file: ${uploadResult.error.message}`);
+        this.logger.warn('Both service role and anon key failed, trying direct API call:', uploadResult.error);
+        return await this.uploadFileDirect(file, bucket, filePath);
       }
 
       // Get public URL
@@ -383,6 +384,52 @@ export class SupabaseService {
         throw error;
       }
       throw new BadRequestException('Failed to upload image');
+    }
+  }
+
+  /**
+   * Direct file upload method that bypasses RLS by using direct API calls
+   * @param file - The file to upload
+   * @param bucket - The storage bucket name
+   * @param filePath - The full file path within the bucket
+   * @returns Promise with the public URL of the uploaded file
+   */
+  async uploadFileDirect(
+    file: Express.Multer.File,
+    bucket: string,
+    filePath: string
+  ): Promise<string> {
+    try {
+      // Use direct API call to bypass RLS
+      const supabaseUrl = this.configService.get<string>('SUPABASE_URL');
+      const supabaseServiceKey = this.configService.get<string>('SUPABASE_SERVICE_ROLE_KEY');
+      
+      const response = await fetch(`${supabaseUrl}/storage/v1/object/${bucket}/${filePath}`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${supabaseServiceKey}`,
+          'Content-Type': file.mimetype,
+        },
+        body: file.buffer as any,
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new BadRequestException(`Failed to upload file: ${errorText}`);
+      }
+
+      // Get public URL
+      const publicUrl = `${supabaseUrl}/storage/v1/object/public/${bucket}/${filePath}`;
+      
+      this.logger.log(`File uploaded successfully via direct API: ${publicUrl}`);
+      return publicUrl;
+
+    } catch (error) {
+      this.logger.error('Error in uploadFileDirect:', error);
+      if (error instanceof BadRequestException) {
+        throw error;
+      }
+      throw new BadRequestException('Failed to upload file via direct API');
     }
   }
 

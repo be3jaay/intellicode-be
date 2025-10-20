@@ -1,10 +1,24 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { IsString, IsOptional, IsInt, IsBoolean, IsEnum, IsArray, IsDateString, IsUUID, Min, Max, ValidateNested, IsObject, Allow } from 'class-validator';
 import { Type } from 'class-transformer';
+import { IsValidAssignmentSubtype } from '@/common/validators/assignment-subtype.validator';
 
 export enum AssignmentType {
-  QUIZ_FORM = 'quiz_form',
-  FILE_UPLOAD = 'file_upload'
+  assignment = 'assignment',
+  activity = 'activity',
+  exam = 'exam'
+}
+
+export enum AssignmentSubtype {
+  code_sandbox = 'code_sandbox',
+  quiz_form = 'quiz_form',
+  file_upload = 'file_upload'
+}
+
+export enum DifficultyLevel {
+  easy = 'easy',
+  medium = 'medium',
+  hard = 'hard'
 }
 
 export enum ExamQuestionType {
@@ -74,9 +88,17 @@ export class CreateAssignmentDto {
   @IsString()
   description?: string;
 
-  @ApiProperty({ enum: AssignmentType, description: 'Type of assignment' })
+  @ApiProperty({ enum: AssignmentType, description: 'Type of assignment (assignment, activity, exam)' })
   @IsEnum(AssignmentType)
   assignmentType: AssignmentType;
+
+  @ApiProperty({ enum: AssignmentSubtype, description: 'Subtype of assignment (code_sandbox, quiz_form, file_upload)' })
+  @IsEnum(AssignmentSubtype)
+  assignmentSubtype: AssignmentSubtype;
+
+  @ApiProperty({ enum: DifficultyLevel, description: 'Difficulty level of the assignment' })
+  @IsEnum(DifficultyLevel)
+  difficulty: DifficultyLevel;
 
   @ApiProperty({ description: 'Total points for the assignment', minimum: 0 })
   @IsInt()
@@ -88,6 +110,11 @@ export class CreateAssignmentDto {
   @IsOptional()
   @IsDateString()
   dueDate?: string;
+
+  @ApiPropertyOptional({ description: 'Whether to use secured browser (auto-enabled for quiz and exam)' })
+  @IsOptional()
+  @IsBoolean()
+  secured_browser?: boolean;
 
   @ApiPropertyOptional({ description: 'Questions for quiz form assignments', type: [CreateAssignmentQuestionDto] })
   @IsOptional()
@@ -101,15 +128,14 @@ export class CreateAssignmentDto {
   @IsString()
   starterCode?: string;
 
-  @ApiPropertyOptional({ description: 'Test cases for coding assignments' })
-  @IsOptional()
-  @IsString()
-  testCases?: string;
 
   @ApiPropertyOptional({ description: 'Attachment file for file upload assignments' })
   @IsOptional()
   @IsObject()
   attachment?: any;
+
+  @IsValidAssignmentSubtype()
+  private _subtypeValidation?: any; // This field is used for validation only
 }
 
 export class UpdateAssignmentDto {
@@ -123,10 +149,20 @@ export class UpdateAssignmentDto {
   @IsString()
   description?: string;
 
-  @ApiPropertyOptional({ enum: AssignmentType, description: 'Type of assignment' })
+  @ApiPropertyOptional({ enum: AssignmentType, description: 'Type of assignment (assignment, activity, exam)' })
   @IsOptional()
   @IsEnum(AssignmentType)
   assignmentType?: AssignmentType;
+
+  @ApiPropertyOptional({ enum: AssignmentSubtype, description: 'Subtype of assignment (code_sandbox, quiz_form, file_upload)' })
+  @IsOptional()
+  @IsEnum(AssignmentSubtype)
+  assignmentSubtype?: AssignmentSubtype;
+
+  @ApiPropertyOptional({ enum: DifficultyLevel, description: 'Difficulty level of the assignment' })
+  @IsOptional()
+  @IsEnum(DifficultyLevel)
+  difficulty?: DifficultyLevel;
 
   @ApiPropertyOptional({ description: 'Total points for the assignment', minimum: 0 })
   @IsOptional()
@@ -144,6 +180,11 @@ export class UpdateAssignmentDto {
   @IsBoolean()
   is_published?: boolean;
 
+  @ApiPropertyOptional({ description: 'Whether to use secured browser' })
+  @IsOptional()
+  @IsBoolean()
+  secured_browser?: boolean;
+
   @ApiPropertyOptional({ description: 'Questions for quiz form assignments', type: [CreateAssignmentQuestionDto] })
   @IsOptional()
   @IsArray()
@@ -156,10 +197,9 @@ export class UpdateAssignmentDto {
   @IsString()
   starterCode?: string;
 
-  @ApiPropertyOptional({ description: 'Test cases for coding assignments' })
-  @IsOptional()
-  @IsString()
-  testCases?: string;
+
+  @IsValidAssignmentSubtype()
+  private _subtypeValidation?: any; // This field is used for validation only
 }
 
 export class AssignmentResponseDto {
@@ -172,8 +212,14 @@ export class AssignmentResponseDto {
   @ApiPropertyOptional({ description: 'Assignment description' })
   description?: string;
 
-  @ApiProperty({ enum: AssignmentType, description: 'Type of assignment' })
+  @ApiProperty({ enum: AssignmentType, description: 'Type of assignment (assignment, activity, exam)' })
   assignmentType: AssignmentType;
+
+  @ApiProperty({ enum: AssignmentSubtype, description: 'Subtype of assignment (code_sandbox, quiz_form, file_upload)' })
+  assignmentSubtype: AssignmentSubtype;
+
+  @ApiProperty({ enum: DifficultyLevel, description: 'Difficulty level of the assignment' })
+  difficulty: DifficultyLevel;
 
   @ApiProperty({ description: 'Total points for the assignment' })
   points: number;
@@ -183,6 +229,9 @@ export class AssignmentResponseDto {
 
   @ApiProperty({ description: 'Whether the assignment is published' })
   is_published: boolean;
+
+  @ApiProperty({ description: 'Whether to use secured browser' })
+  secured_browser: boolean;
 
   @ApiProperty({ description: 'Module ID where assignment belongs' })
   module_id: string;
@@ -199,8 +248,9 @@ export class AssignmentResponseDto {
   @ApiPropertyOptional({ description: 'Starter code for coding assignments' })
   starterCode?: string;
 
-  @ApiPropertyOptional({ description: 'Test cases for coding assignments' })
-  testCases?: string;
+  @ApiPropertyOptional({ description: 'Attachments', type: [Object] })
+  attachments?: any[];
+
 }
 
 export class AssignmentQueryDto {
@@ -224,11 +274,27 @@ export class AssignmentQueryDto {
   @IsEnum(AssignmentType)
   assignment_type?: AssignmentType;
 
+  @ApiPropertyOptional({ enum: AssignmentSubtype, description: 'Filter by assignment subtype' })
+  @IsOptional()
+  @IsEnum(AssignmentSubtype)
+  assignment_subtype?: AssignmentSubtype;
+
+  @ApiPropertyOptional({ enum: DifficultyLevel, description: 'Filter by difficulty level' })
+  @IsOptional()
+  @IsEnum(DifficultyLevel)
+  difficulty?: DifficultyLevel;
+
   @ApiPropertyOptional({ description: 'Filter by published status' })
   @IsOptional()
   @IsBoolean()
   @Type(() => Boolean)
   is_published?: boolean;
+
+  @ApiPropertyOptional({ description: 'Filter by secured browser status' })
+  @IsOptional()
+  @IsBoolean()
+  @Type(() => Boolean)
+  secured_browser?: boolean;
 
   @ApiPropertyOptional({ description: 'Search by title' })
   @IsOptional()
