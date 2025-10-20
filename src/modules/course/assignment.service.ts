@@ -338,7 +338,23 @@ export class AssignmentService {
       throw new NotFoundException('Assignment not found or you do not have access to it');
     }
 
-    return this.formatAssignmentResponse(assignment);
+    // Determine if the current user already submitted this assignment
+    let alreadySubmitted = false;
+    if (userId) {
+      const existingSubmission = await this.prisma.assignmentSubmission.findFirst({
+        where: {
+          assignment_id: assignment.id,
+          student_id: userId,
+        },
+        select: { id: true },
+      });
+      alreadySubmitted = !!existingSubmission;
+    }
+
+    return {
+      ...this.formatAssignmentResponse(assignment),
+      already_submitted: alreadySubmitted,
+    };
   }
 
   async updateAssignment(assignmentId: string, updateAssignmentDto: UpdateAssignmentDto, instructorId: string): Promise<AssignmentResponseDto> {
@@ -843,7 +859,8 @@ export class AssignmentService {
         case_sensitive: q.case_sensitive,
         is_true: q.is_true
       })),
-      starterCode: assignment.starter_code
+      starterCode: assignment.starter_code,
+      already_submitted: false
     };
   }
 

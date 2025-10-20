@@ -251,6 +251,9 @@ export class AssignmentResponseDto {
   @ApiPropertyOptional({ description: 'Attachments', type: [Object] })
   attachments?: any[];
 
+  @ApiProperty({ description: 'Whether the assignment is already submitted' })
+  already_submitted: boolean;
+
 }
 
 export class AssignmentQueryDto {
