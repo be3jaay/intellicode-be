@@ -197,6 +197,7 @@ model User {
   submissions     Submission[] @relation("StudentSubmissions")
   assignment_submissions AssignmentSubmission[] @relation("StudentAssignmentSubmissions")
   lesson_progress LessonProgress[] @relation("StudentLessonProgress")
+  notifications   Notification[] @relation("UserNotifications")
 
   @@index([email])
   @@index([role])
@@ -221,6 +222,7 @@ model Course {
   enrollments        Enrollment[]  @relation("CourseEnrollments")
   modules            Module[]      @relation("CourseModules")
   files              FileStorage[] @relation("CourseFiles")
+  grade_weights      CourseGradeWeights? @relation("CourseGradeWeights")
 
   @@index([title])
   @@index([category])
@@ -442,4 +444,53 @@ model LessonProgress {
   @@index([lesson_id])
   @@index([is_completed])
   @@map("lesson_progress")
+}
+
+model Notification {
+  id              String             @id @db.Uuid
+  user_id         String             @db.Uuid
+  type            NotificationType
+  title           String
+  message         String
+  is_read         Boolean            @default(false)
+  related_id      String?            @db.Uuid
+  related_type    NotificationRelatedType?
+  created_at      DateTime           @default(now())
+  user            User               @relation("UserNotifications", fields: [user_id], references: [id])
+
+  @@index([user_id])
+  @@index([is_read])
+  @@index([type])
+  @@index([created_at])
+  @@map("notifications")
+}
+
+enum NotificationType {
+  course_approved
+  course_rejected
+  new_assignment
+  assignment_graded
+  enrollment_status_changed
+  general
+}
+
+enum NotificationRelatedType {
+  course
+  assignment
+  enrollment
+  submission
+}
+
+model CourseGradeWeights {
+  id                String   @id @db.Uuid
+  course_id         String   @unique @db.Uuid
+  assignment_weight Int      @default(40)
+  activity_weight   Int      @default(30)
+  exam_weight       Int      @default(30)
+  created_at        DateTime @default(now())
+  updated_at        DateTime @updatedAt
+  course            Course   @relation("CourseGradeWeights", fields: [course_id], references: [id])
+
+  @@index([course_id])
+  @@map("course_grade_weights")
 }

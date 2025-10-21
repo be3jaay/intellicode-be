@@ -323,3 +323,4 @@ export class UpdateCourseGradeWeightsDto {
   exam_weight: number;
 }
 
+
