@@ -12,8 +12,9 @@ import { SupabaseService } from '@/core/supabase/supabase.service';
 import { v4 as uuidv4 } from 'uuid';
 import { EnrollmentService } from './enrollment.service';
 import { UuidValidator } from '@/common/utils/uuid.validator';
-import { Course } from '@prisma/client';
+import { Course, NotificationRelatedType, NotificationType } from '@prisma/client';
 import { InstructorAnalyticsDto } from './dto/instructor-analytics.dto';
+import { NotificationsService } from '../notifications/notifications.service';
 
 @Injectable()
 export class CourseService {
@@ -21,6 +22,7 @@ export class CourseService {
     private readonly prisma: PrismaService,
     private readonly supabaseService: SupabaseService,
     private readonly enrollmentService: EnrollmentService,
+    private readonly notificationsService: NotificationsService,
   ) {}
 
   private generateCourseInviteCode() {
@@ -83,6 +85,15 @@ export class CourseService {
           },
         },
       },
+    });
+
+    await this.notificationsService.createNotification({
+      user_id: instructorId,
+      type: NotificationType.general as NotificationType,
+      title: 'New Course Created',
+      message: `A new course "${course.title}" has been created. Please review and approve it.`,
+      related_id: course.id,
+      related_type: NotificationRelatedType.course as NotificationRelatedType,
     });
 
     return course;

@@ -12,6 +12,7 @@ import {
   Query,
   UseInterceptors,
   UploadedFile,
+  ForbiddenException,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { CourseService } from './course.service';
@@ -96,6 +97,15 @@ import {
 } from './dto/assignment.dto';
 import { ProgressService } from './progress.service';
 import { InstructorAnalyticsDto } from './dto/instructor-analytics.dto';
+import { GradebookService } from './gradebook.service';
+import {
+  GradebookQueryDto,
+  InstructorGradebookDto,
+  StudentGradebookDto,
+  GradeSummaryDto,
+  CourseGradeWeightsDto,
+  UpdateCourseGradeWeightsDto,
+} from './dto/gradebook.dto';
 
 @Controller('course')
 export class CourseController {
@@ -108,6 +118,7 @@ export class CourseController {
     private readonly moduleService: ModuleService,
     private readonly assignmentService: AssignmentService,
     private readonly progressService: ProgressService,
+    private readonly gradebookService: GradebookService,
   ) {}
 
   @Roles('teacher')
@@ -1239,5 +1250,138 @@ export class CourseController {
       progressDto.completion_percentage,
       progressDto.is_completed,
     );
+  }
+
+  // Gradebook endpoints
+  @Get(':courseId/gradebook')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('teacher')
+  @ApiBearerAuth('JWT-auth')
+  @ApiOperation({ summary: 'Get instructor gradebook for course' })
+  @ApiParam({ name: 'courseId', description: 'Course ID' })
+  @ApiResponse({
+    status: HttpStatus.OK,
+    description: 'Gradebook retrieved successfully',
+    type: InstructorGradebookDto,
+  })
+  @ApiResponse({ status: HttpStatus.NOT_FOUND, description: 'Course not found' })
+  @ApiResponse({
+    status: HttpStatus.FORBIDDEN,
+    description: 'You do not have permission to view this gradebook',
+  })
+  async getInstructorGradebook(
+    @Param('courseId') courseId: string,
+    @Query() query: GradebookQueryDto,
+    @CurrentUser() user: RequestUser,
+  ) {
+    return await this.gradebookService.getInstructorGradebook(courseId, user.id, query);
+  }
+
+  @Get(':courseId/gradebook/student/:studentId')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('teacher')
+  @ApiBearerAuth('JWT-auth')
+  @ApiOperation({ summary: 'Get detailed grades for a specific student' })
+  @ApiParam({ name: 'courseId', description: 'Course ID' })
+  @ApiParam({ name: 'studentId', description: 'Student ID' })
+  @ApiResponse({
+    status: HttpStatus.OK,
+    description: 'Student grades retrieved successfully',
+    type: StudentGradebookDto,
+  })
+  @ApiResponse({ status: HttpStatus.NOT_FOUND, description: 'Course or student not found' })
+  @ApiResponse({
+    status: HttpStatus.FORBIDDEN,
+    description: 'You do not have permission to view this gradebook',
+  })
+  async getStudentDetailedGrades(
+    @Param('courseId') courseId: string,
+    @Param('studentId') studentId: string,
+    @CurrentUser() user: RequestUser,
+  ) {
+    // Verify instructor owns the course
+    const course = await this.courseService.findOne(courseId);
+    if (course.instructor_id !== user.id) {
+      throw new ForbiddenException('You do not have permission to view this gradebook');
+    }
+    return await this.gradebookService.getStudentGradebook(courseId, studentId);
+  }
+
+  @Get(':courseId/grade-weights')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('teacher')
+  @ApiBearerAuth('JWT-auth')
+  @ApiOperation({ summary: 'Get course grade weights configuration' })
+  @ApiParam({ name: 'courseId', description: 'Course ID' })
+  @ApiResponse({
+    status: HttpStatus.OK,
+    description: 'Grade weights retrieved successfully',
+    type: CourseGradeWeightsDto,
+  })
+  @ApiResponse({ status: HttpStatus.NOT_FOUND, description: 'Course not found' })
+  async getCourseGradeWeights(@Param('courseId') courseId: string, @CurrentUser() user: RequestUser) {
+    // Verify instructor owns the course
+    const course = await this.courseService.findOne(courseId);
+    if (course.instructor_id !== user.id) {
+      throw new ForbiddenException('You do not have permission to view grade weights');
+    }
+    return await this.gradebookService.getCourseGradeWeights(courseId);
+  }
+
+  @Patch(':courseId/grade-weights')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('teacher')
+  @ApiBearerAuth('JWT-auth')
+  @ApiOperation({ summary: 'Update course grade weights configuration' })
+  @ApiParam({ name: 'courseId', description: 'Course ID' })
+  @ApiResponse({
+    status: HttpStatus.OK,
+    description: 'Grade weights updated successfully',
+    type: CourseGradeWeightsDto,
+  })
+  @ApiResponse({ status: HttpStatus.BAD_REQUEST, description: 'Invalid weights (must sum to 100)' })
+  @ApiResponse({ status: HttpStatus.NOT_FOUND, description: 'Course not found' })
+  @ApiResponse({
+    status: HttpStatus.FORBIDDEN,
+    description: 'You do not have permission to update grade weights',
+  })
+  async updateCourseGradeWeights(
+    @Param('courseId') courseId: string,
+    @Body() weightsDto: UpdateCourseGradeWeightsDto,
+    @CurrentUser() user: RequestUser,
+  ) {
+    return await this.gradebookService.updateCourseGradeWeights(courseId, weightsDto, user.id);
+  }
+
+  @Get(':courseId/my-gradebook')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('student')
+  @ApiBearerAuth('JWT-auth')
+  @ApiOperation({ summary: 'Get my gradebook for a course' })
+  @ApiParam({ name: 'courseId', description: 'Course ID' })
+  @ApiResponse({
+    status: HttpStatus.OK,
+    description: 'Gradebook retrieved successfully',
+    type: StudentGradebookDto,
+  })
+  @ApiResponse({ status: HttpStatus.NOT_FOUND, description: 'Course not found or not enrolled' })
+  async getMyGradebook(@Param('courseId') courseId: string, @CurrentUser() user: RequestUser) {
+    return await this.gradebookService.getStudentGradebook(courseId, user.id);
+  }
+
+  @Get(':courseId/my-grade-summary')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('student')
+  @ApiBearerAuth('JWT-auth')
+  @ApiOperation({ summary: 'Get my grade summary for a course' })
+  @ApiParam({ name: 'courseId', description: 'Course ID' })
+  @ApiResponse({
+    status: HttpStatus.OK,
+    description: 'Grade summary retrieved successfully',
+    type: GradeSummaryDto,
+  })
+  @ApiResponse({ status: HttpStatus.NOT_FOUND, description: 'Course not found or not enrolled' })
+  async getMyGradeSummary(@Param('courseId') courseId: string, @CurrentUser() user: RequestUser) {
+    return await this.gradebookService.calculateStudentOverallGrade(courseId, user.id);
   }
 }

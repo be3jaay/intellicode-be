@@ -14,6 +14,7 @@ import { SecurityHeadersMiddleware } from './middleware';
 import { AuthModule } from './modules/auth/auth.module';
 import { UsersModule } from './modules/users/users.module';
 import { CourseModule } from './modules/course/course.module';
+import { NotificationsModule } from './modules/notifications/notifications.module';
 
 @Module({
   imports: [
@@ -44,6 +45,7 @@ import { CourseModule } from './modules/course/course.module';
       },
     ]),
     CourseModule,
+    NotificationsModule,
   ],
   providers: [
     {

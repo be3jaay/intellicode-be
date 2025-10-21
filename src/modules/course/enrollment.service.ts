@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
+import { Injectable, NotFoundException, BadRequestException, forwardRef, Inject } from '@nestjs/common';
 import { PrismaService } from '@/core/prisma/prisma.service';
 import { 
   EnrollCourseDto, 
@@ -17,10 +17,15 @@ import {
 } from './dto/student.dto';
 import { v4 as uuidv4 } from 'uuid';
 import { UuidValidator } from '@/common/utils/uuid.validator';
+import { GradebookService } from './gradebook.service';
 
 @Injectable()
 export class EnrollmentService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    @Inject(forwardRef(() => GradebookService))
+    private readonly gradebookService: GradebookService,
+  ) {}
 
 
   async getMyThreeLatestEnrollments(studentId: string): Promise<EnrollmentResponseDto[]> {
@@ -320,10 +325,11 @@ export class EnrollmentService {
       orderBy: { enrolled_at: 'desc' }
     });
 
-    // Transform to StudentDto with mocked progress
-    const students = enrollments.map(enrollment => {
-      const progressPercentage = this.calculateMockProgress(enrollment.student_id, courseId);
-      const assignmentsData = this.getMockAssignmentsData(enrollment.student_id, courseId);
+    // Transform to StudentDto with real progress
+    const students = await Promise.all(enrollments.map(async enrollment => {
+      const progressData = await this.calculateActualProgress(enrollment.student_id, courseId);
+      const assignmentsData = await this.getActualAssignmentsData(enrollment.student_id, courseId);
+      const lastActivity = await this.getActualLastActivity(enrollment.student_id, courseId);
 
       return {
         id: enrollment.student.id,
@@ -335,12 +341,12 @@ export class EnrollmentService {
         profile_picture: enrollment.student.profile_picture,
         enrollment_status: enrollment.status as EnrollmentStatus,
         enrolled_at: enrollment.enrolled_at,
-        progress_percentage: progressPercentage,
+        progress_percentage: progressData,
         assignments_completed: assignmentsData.completed,
         assignments_total: assignmentsData.total,
-        last_activity: this.getMockLastActivity(enrollment.student_id, courseId)
+        last_activity: lastActivity
       };
-    });
+    }));
 
     const totalPages = Math.ceil(total / limit);
     const currentPage = Math.floor(offset / limit) + 1;
@@ -460,14 +466,17 @@ export class EnrollmentService {
     const droppedStudents = enrollments.filter(e => e.status === 'dropped').length;
     const suspendedStudents = enrollments.filter(e => e.status === 'suspended').length;
 
-    // Calculate average progress (mocked)
-    const averageProgress = enrollments.length > 0 
-      ? enrollments.reduce((sum, enrollment) => sum + this.calculateMockProgress(enrollment.student_id, courseId), 0) / enrollments.length
-      : 0;
+    // Calculate average progress (real)
+    let totalProgress = 0;
+    for (const enrollment of enrollments) {
+      const progress = await this.calculateActualProgress(enrollment.student_id, courseId);
+      totalProgress += progress;
+    }
+    const averageProgress = enrollments.length > 0 ? totalProgress / enrollments.length : 0;
 
-    // Get assignment statistics (mocked)
-    const totalAssignments = this.getMockTotalAssignments(courseId);
-    const averageCompletionRate = this.getMockAverageCompletionRate(courseId);
+    // Get assignment statistics (real)
+    const totalAssignments = await this.getActualTotalAssignments(courseId);
+    const averageCompletionRate = await this.getActualAverageCompletionRate(courseId);
 
     return {
       course_id: courseId,
@@ -482,38 +491,104 @@ export class EnrollmentService {
     };
   }
 
-  // Mock methods for progress calculation (to be replaced with real implementation)
-  private calculateMockProgress(studentId: string, courseId: string): number {
-    // Mock progress calculation - returns random percentage between 0-100
-    const seed = studentId.charCodeAt(0) + courseId.charCodeAt(0);
-    return Math.abs(seed) % 101;
+  // Real methods for progress calculation using gradebook service
+  private async calculateActualProgress(studentId: string, courseId: string): Promise<number> {
+    try {
+      const categoryGrades = await this.gradebookService.calculateCategoryGrades(courseId, studentId);
+      
+      // Calculate overall completion percentage based on submissions
+      const totalAssignments = categoryGrades.assignment_total + categoryGrades.activity_total + categoryGrades.exam_total;
+      const completedAssignments = categoryGrades.assignment_submitted + categoryGrades.activity_submitted + categoryGrades.exam_submitted;
+      
+      if (totalAssignments === 0) return 0;
+      return Math.round((completedAssignments / totalAssignments) * 100);
+    } catch (error) {
+      return 0;
+    }
   }
 
-  private getMockAssignmentsData(studentId: string, courseId: string): { completed: number; total: number } {
-    // Mock assignment data
-    const seed = studentId.charCodeAt(0) + courseId.charCodeAt(0);
-    const total = Math.abs(seed) % 10 + 5; // 5-14 assignments
-    const completed = Math.abs(seed) % (total + 1); // 0 to total
-    return { completed, total };
+  private async getActualAssignmentsData(studentId: string, courseId: string): Promise<{ completed: number; total: number }> {
+    try {
+      const categoryGrades = await this.gradebookService.calculateCategoryGrades(courseId, studentId);
+      
+      const total = categoryGrades.assignment_total + categoryGrades.activity_total + categoryGrades.exam_total;
+      const completed = categoryGrades.assignment_submitted + categoryGrades.activity_submitted + categoryGrades.exam_submitted;
+      
+      return { completed, total };
+    } catch (error) {
+      return { completed: 0, total: 0 };
+    }
   }
 
-  private getMockLastActivity(studentId: string, courseId: string): Date {
-    // Mock last activity - returns random date within last 30 days
-    const daysAgo = Math.abs(studentId.charCodeAt(0)) % 30;
-    const date = new Date();
-    date.setDate(date.getDate() - daysAgo);
-    return date;
+  private async getActualLastActivity(studentId: string, courseId: string): Promise<Date> {
+    try {
+      // Get all modules for the course
+      const modules = await this.prisma.module.findMany({
+        where: { course_id: courseId },
+        select: { id: true },
+      });
+
+      const moduleIds = modules.map((m) => m.id);
+
+      // Get last submission date
+      const lastSubmission = await this.prisma.assignmentSubmission.findFirst({
+        where: {
+          student_id: studentId,
+          assignment: {
+            module_id: { in: moduleIds },
+          },
+        },
+        orderBy: { submitted_at: 'desc' },
+        select: { submitted_at: true },
+      });
+
+      return lastSubmission?.submitted_at || new Date();
+    } catch (error) {
+      return new Date();
+    }
   }
 
-  private getMockTotalAssignments(courseId: string): number {
-    // Mock total assignments for course
-    const seed = courseId.charCodeAt(0);
-    return Math.abs(seed) % 15 + 10; // 10-24 assignments
+  private async getActualTotalAssignments(courseId: string): Promise<number> {
+    try {
+      return await this.prisma.assignment.count({
+        where: {
+          module: {
+            course_id: courseId,
+          },
+          is_published: true,
+        },
+      });
+    } catch (error) {
+      return 0;
+    }
   }
 
-  private getMockAverageCompletionRate(courseId: string): number {
-    // Mock average completion rate
-    const seed = courseId.charCodeAt(0);
-    return Math.abs(seed) % 41 + 60; // 60-100%
+  private async getActualAverageCompletionRate(courseId: string): Promise<number> {
+    try {
+      // Get all active enrollments
+      const enrollments = await this.prisma.enrollment.findMany({
+        where: {
+          course_id: courseId,
+          status: 'active',
+        },
+        select: { student_id: true },
+      });
+
+      if (enrollments.length === 0) return 0;
+
+      const totalAssignments = await this.getActualTotalAssignments(courseId);
+      if (totalAssignments === 0) return 0;
+
+      let totalCompleted = 0;
+      for (const enrollment of enrollments) {
+        const data = await this.getActualAssignmentsData(enrollment.student_id, courseId);
+        totalCompleted += data.completed;
+      }
+
+      const averageCompleted = totalCompleted / enrollments.length;
+      return Math.round((averageCompleted / totalAssignments) * 100);
+    } catch (error) {
+      return 0;
+    }
   }
 }

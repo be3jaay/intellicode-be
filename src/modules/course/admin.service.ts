@@ -2,10 +2,14 @@ import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '@/core/prisma/prisma.service';
 import { ApproveCourseDto, PendingCoursesQueryDto } from './dto/admin.dto';
 import { UuidValidator } from '@/common/utils/uuid.validator';
+import { NotificationsService } from '../notifications/notifications.service';
 
 @Injectable()
 export class AdminService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly notificationsService: NotificationsService,
+  ) {}
 
   async getPendingCourses(query: PendingCoursesQueryDto) {
     // Convert string parameters to numbers
@@ -79,6 +83,17 @@ export class AdminService {
         }
       }
     });
+
+    // Send notification to instructor if the course has an instructor
+    if (updatedCourse.instructor_id) {
+      const isApproved = approveDto.status === 'approved';
+      await this.notificationsService.notifyInstructorCourseApproval(
+        updatedCourse.instructor_id,
+        updatedCourse.id,
+        updatedCourse.title,
+        isApproved,
+      );
+    }
 
     return updatedCourse;
   }

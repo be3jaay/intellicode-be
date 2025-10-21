@@ -19,12 +19,14 @@ import {
   DifficultyLevel,
   ExamQuestionType
 } from './dto/assignment.dto';
+import { NotificationsService } from '../notifications/notifications.service';
 
 @Injectable()
 export class AssignmentService {
   constructor(
     private readonly prisma: PrismaService,
-    private readonly supabaseService: SupabaseService
+    private readonly supabaseService: SupabaseService,
+    private readonly notificationsService: NotificationsService,
   ) {}
 
   async createAssignment(createAssignmentDto: CreateAssignmentDto, instructorId: string, moduleId: string): Promise<AssignmentResponseDto> {
@@ -123,6 +125,16 @@ export class AssignmentService {
         await this.prisma.assignment.delete({ where: { id: assignment.id } });
         throw new BadRequestException(`Failed to upload assignment file: ${error.message}`);
       }
+    }
+
+    // Send notifications to enrolled students if assignment is published
+    if (assignment.is_published) {
+      await this.notificationsService.notifyStudentsNewAssignment(
+        module.course_id,
+        assignment.id,
+        assignment.title,
+        module.title,
+      );
     }
 
     return this.formatAssignmentResponse(assignment);
@@ -224,6 +236,16 @@ export class AssignmentService {
         await this.prisma.assignment.delete({ where: { id: assignment.id } });
         throw new BadRequestException(`Failed to upload assignment file: ${error.message}`);
       }
+    }
+
+    // Send notifications to enrolled students if assignment is published
+    if (assignment.is_published) {
+      await this.notificationsService.notifyStudentsNewAssignment(
+        module.course_id,
+        assignment.id,
+        assignment.title,
+        module.title,
+      );
     }
 
     return this.formatAssignmentResponse(assignment);
@@ -393,6 +415,10 @@ export class AssignmentService {
     // Handle assignment subtype-specific logic
     const processedData = this.processAssignmentData(assignmentData, questions);
 
+    // Check if assignment is being published for the first time
+    const wasUnpublished = !existingAssignment.is_published;
+    const isBeingPublished = processedData.is_published === true;
+
     // Update assignment
     const assignment = await this.prisma.assignment.update({
       where: { id: assignmentId },
@@ -428,6 +454,16 @@ export class AssignmentService {
         attachments: true
       }
     });
+
+    // Send notifications to enrolled students if assignment is being published for the first time
+    if (wasUnpublished && isBeingPublished) {
+      await this.notificationsService.notifyStudentsNewAssignment(
+        existingAssignment.module.course_id,
+        assignment.id,
+        assignment.title,
+        existingAssignment.module.title,
+      );
+    }
 
     return this.formatAssignmentResponse(assignment);
   }
