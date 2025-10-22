@@ -73,18 +73,35 @@ export class UsersService {
   async updateProfile(
     userId: string,
     updateProfileDto: UpdateProfileDto,
-  requestingUserId: string,
+    requestingUserId: string,
     requestingUserRole: UserRole,
+    profilePicture?: Express.Multer.File,
   ): Promise<UserProfile> {
     // Students can only update their own profile
     if (requestingUserRole === UserRole.student && userId !== requestingUserId) {
       throw new ForbiddenException('You can only update your own profile');
     }
 
+    // Get current user profile to check for existing profile picture
+    const currentUser = await this.prisma.user.findUnique({
+      where: { id: userId },
+    });
+
+    if (!currentUser) {
+      throw new NotFoundException('User not found');
+    }
+
     const updateData: any = {};
 
-    if (updateProfileDto.fullName !== undefined) {
-      updateData.full_name = updateProfileDto.fullName;
+    // Update name fields
+    if (updateProfileDto.firstName !== undefined) {
+      updateData.first_name = updateProfileDto.firstName;
+    }
+    if (updateProfileDto.middleName !== undefined) {
+      updateData.middle_name = updateProfileDto.middleName;
+    }
+    if (updateProfileDto.lastName !== undefined) {
+      updateData.last_name = updateProfileDto.lastName;
     }
     if (updateProfileDto.studentNumber !== undefined) {
       updateData.student_number = updateProfileDto.studentNumber;
@@ -92,8 +109,24 @@ export class UsersService {
     if (updateProfileDto.section !== undefined) {
       updateData.section = updateProfileDto.section;
     }
-    if (updateProfileDto.profilePicture !== undefined) {
-      updateData.profile_picture = updateProfileDto.profilePicture;
+
+    // Handle profile picture upload
+    if (profilePicture) {
+      try {
+        // Delete old profile picture if exists
+        if (currentUser.profile_picture) {
+          await this.supabaseService.deleteProfilePicture(currentUser.profile_picture);
+        }
+
+        // Upload new profile picture
+        const profilePictureUrl = await this.supabaseService.uploadProfilePicture(
+          profilePicture,
+          userId,
+        );
+        updateData.profile_picture = profilePictureUrl;
+      } catch (error) {
+        throw new Error(`Failed to upload profile picture: ${error.message}`);
+      }
     }
 
     try {

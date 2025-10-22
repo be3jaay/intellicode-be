@@ -7,7 +7,10 @@ import {
   Param,
   UseGuards,
   Query,
+  UseInterceptors,
+  UploadedFile,
 } from '@nestjs/common';
+import { FileInterceptor } from '@nestjs/platform-express';
 import {
   ApiTags,
   ApiOperation,
@@ -15,6 +18,8 @@ import {
   ApiBearerAuth,
   ApiParam,
   ApiQuery,
+  ApiConsumes,
+  ApiBody,
 } from '@nestjs/swagger';
 import { UsersService } from './users.service';
 import { UpdateProfileDto } from './dto/update-profile.dto';
@@ -105,9 +110,28 @@ export class UsersController {
 
   @Put(':id')
   @Roles(UserRole.admin, UserRole.teacher, UserRole.student)
+  @UseInterceptors(FileInterceptor('profilePicture'))
   @ApiOperation({
     summary: 'Update user profile',
-    description: 'Students can only update their own profile. Teachers and admins can update any profile.',
+    description: 'Students can only update their own profile. Teachers and admins can update any profile. Supports profile picture upload.',
+  })
+  @ApiConsumes('multipart/form-data')
+  @ApiBody({
+    schema: {
+      type: 'object',
+      properties: {
+        firstName: { type: 'string', example: 'John' },
+        middleName: { type: 'string', example: 'Michael' },
+        lastName: { type: 'string', example: 'Doe' },
+        studentNumber: { type: 'string', example: '2021-00001' },
+        section: { type: 'string', example: 'BSCS 3A' },
+        profilePicture: {
+          type: 'string',
+          format: 'binary',
+          description: 'Profile picture image file (JPEG, PNG, WebP)',
+        },
+      },
+    },
   })
   @ApiParam({ name: 'id', description: 'User ID (UUID)' })
   @ApiResponse({ status: 200, description: 'Profile updated successfully' })
@@ -116,9 +140,10 @@ export class UsersController {
   async updateProfile(
     @Param('id') id: string,
     @Body() updateProfileDto: UpdateProfileDto,
+    @UploadedFile() profilePicture: Express.Multer.File,
     @CurrentUser() user: RequestUser,
   ) {
-    return this.usersService.updateProfile(id, updateProfileDto, user.id, user.role);
+    return this.usersService.updateProfile(id, updateProfileDto, user.id, user.role, profilePicture);
   }
 
   @Put(':id/role')

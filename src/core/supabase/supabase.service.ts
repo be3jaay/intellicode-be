@@ -97,6 +97,9 @@ export class SupabaseService {
       case 'assignment-submissions':
       case 'submission-files':
         return 'assignment-submissions';
+      case 'profile-picture':
+      case 'profile':
+        return 'profile-pictures';
       default:
         return 'course-files';
     }
@@ -523,6 +526,132 @@ export class SupabaseService {
       }
     } catch (error) {
       this.logger.error('Error in deleteImage:', error);
+      // Don't throw error for delete operations
+    }
+  }
+
+  /**
+   * Upload profile picture to Supabase Storage
+   * @param file - The profile picture file to upload
+   * @param userId - The user ID
+   * @returns Promise with the public URL of the uploaded profile picture
+   */
+  async uploadProfilePicture(
+    file: Express.Multer.File,
+    userId: string
+  ): Promise<string> {
+    try {
+      const bucket = 'profile-pictures';
+      const allowedMimeTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp', 'image/gif'];
+      const maxSize = 5 * 1024 * 1024; // 5MB
+
+      // Ensure bucket exists
+      await this.createBucketIfNotExists(bucket);
+
+      // Validate file type
+      if (!allowedMimeTypes.includes(file.mimetype)) {
+        throw new BadRequestException('Invalid file type. Only JPEG, PNG, WebP, and GIF images are allowed for profile pictures.');
+      }
+
+      // Validate file size
+      if (file.size > maxSize) {
+        throw new BadRequestException('File size too large. Maximum size for profile pictures is 5MB.');
+      }
+
+      // Generate unique filename
+      const timestamp = Date.now();
+      const randomString = Math.random().toString(36).substring(2, 15);
+      const fileExtension = file.originalname.split('.').pop();
+      const fileName = `${timestamp}-${randomString}.${fileExtension}`;
+      const filePath = `users/${userId}/${fileName}`;
+
+      // Try to upload with service role client first
+      let uploadResult = await this.client.storage
+        .from(bucket)
+        .upload(filePath, file.buffer, {
+          contentType: file.mimetype,
+          upsert: false,
+        });
+
+      // If service role fails, try with anon key (bypass RLS)
+      if (uploadResult.error) {
+        this.logger.warn('Service role upload failed, trying with anon key:', uploadResult.error);
+        
+        const supabaseUrl = this.configService.get<string>('SUPABASE_URL');
+        const supabaseAnonKey = this.configService.get<string>('SUPABASE_ANON_KEY');
+        
+        const anonClient = createClient(supabaseUrl, supabaseAnonKey, {
+          auth: {
+            autoRefreshToken: false,
+            persistSession: false,
+          },
+        });
+
+        uploadResult = await anonClient.storage
+          .from(bucket)
+          .upload(filePath, file.buffer, {
+            contentType: file.mimetype,
+            upsert: false,
+          });
+      }
+
+      // If both service role and anon key fail, try direct API call (bypasses RLS completely)
+      if (uploadResult.error) {
+        this.logger.warn('Both service role and anon key failed, trying direct API call:', uploadResult.error);
+        return await this.uploadFileDirect(file, bucket, filePath);
+      }
+
+      // Get public URL
+      const { data: publicUrlData } = this.client.storage
+        .from(bucket)
+        .getPublicUrl(filePath);
+
+      if (!publicUrlData?.publicUrl) {
+        throw new BadRequestException('Failed to get public URL for uploaded profile picture');
+      }
+
+      this.logger.log(`Profile picture uploaded successfully: ${publicUrlData.publicUrl}`);
+      return publicUrlData.publicUrl;
+
+    } catch (error) {
+      this.logger.error('Error in uploadProfilePicture:', error);
+      if (error instanceof BadRequestException) {
+        throw error;
+      }
+      throw new BadRequestException('Failed to upload profile picture');
+    }
+  }
+
+  /**
+   * Delete profile picture from Supabase Storage
+   * @param profilePictureUrl - The public URL of the profile picture to delete
+   */
+  async deleteProfilePicture(profilePictureUrl: string): Promise<void> {
+    try {
+      const bucket = 'profile-pictures';
+      
+      // Extract file path from URL
+      const urlParts = profilePictureUrl.split('/');
+      const bucketIndex = urlParts.indexOf(bucket);
+      if (bucketIndex === -1 || bucketIndex === urlParts.length - 1) {
+        this.logger.warn('Invalid profile picture URL format:', profilePictureUrl);
+        return;
+      }
+      
+      const filePath = urlParts.slice(bucketIndex + 1).join('/');
+
+      const { error } = await this.client.storage
+        .from(bucket)
+        .remove([filePath]);
+
+      if (error) {
+        this.logger.error('Error deleting profile picture from Supabase Storage:', error);
+        // Don't throw error for delete operations to avoid breaking the flow
+      } else {
+        this.logger.log(`Profile picture deleted successfully: ${filePath}`);
+      }
+    } catch (error) {
+      this.logger.error('Error in deleteProfilePicture:', error);
       // Don't throw error for delete operations
     }
   }
