@@ -61,7 +61,11 @@ import {
   BulkCreateLessonsFromObjectDto,
   LessonResponseDto,
 } from './dto/lesson.dto';
-import { ApproveCourseDto, PendingCoursesQueryDto } from './dto/admin.dto';
+import {
+  ApproveCourseDto,
+  PendingCoursesQueryDto,
+  ResubmitCourseResponseDto,
+} from './dto/admin.dto';
 import {
   FileUploadDto,
   FileUploadResponseDto,
@@ -323,6 +327,27 @@ export class CourseController {
   @Patch(':id')
   async update(@Param('id') id: string, @Body() updateCourseDto: UpdateCourseDto) {
     return await this.courseService.update(id, updateCourseDto);
+  }
+
+  @Roles('teacher')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @ApiBearerAuth('JWT-auth')
+  @ApiOperation({ summary: 'Resubmit a rejected course for approval' })
+  @ApiParam({ name: 'id', description: 'Course ID' })
+  @ApiResponse({
+    status: HttpStatus.OK,
+    description: 'Course resubmitted successfully',
+    type: ResubmitCourseResponseDto,
+  })
+  @ApiResponse({ status: HttpStatus.NOT_FOUND, description: 'Course not found' })
+  @ApiResponse({ status: HttpStatus.UNAUTHORIZED, description: 'Unauthorized' })
+  @ApiResponse({
+    status: HttpStatus.FORBIDDEN,
+    description: 'Forbidden - Only rejected courses can be resubmitted',
+  })
+  @Patch(':id/resubmit')
+  async resubmitCourse(@Param('id') id: string, @CurrentUser() user: RequestUser) {
+    return await this.courseService.resubmitCourse(id, user.id);
   }
 
   @Roles('teacher')
@@ -1319,7 +1344,10 @@ export class CourseController {
     type: CourseGradeWeightsDto,
   })
   @ApiResponse({ status: HttpStatus.NOT_FOUND, description: 'Course not found' })
-  async getCourseGradeWeights(@Param('courseId') courseId: string, @CurrentUser() user: RequestUser) {
+  async getCourseGradeWeights(
+    @Param('courseId') courseId: string,
+    @CurrentUser() user: RequestUser,
+  ) {
     // Verify instructor owns the course
     const course = await this.courseService.findOne(courseId);
     if (course.instructor_id !== user.id) {

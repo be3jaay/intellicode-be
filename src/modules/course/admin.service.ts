@@ -18,7 +18,7 @@ export class AdminService {
     const status = query.status || 'waiting_for_approval';
 
     const where: any = { status };
-    
+
     const total = await this.prisma.course.count({ where });
 
     const courses = await this.prisma.course.findMany({
@@ -32,10 +32,10 @@ export class AdminService {
             first_name: true,
             last_name: true,
             email: true,
-          }
-        }
+          },
+        },
       },
-      orderBy: { created_at: 'desc' }
+      orderBy: { created_at: 'desc' },
     });
 
     const totalPages = Math.ceil(total / limit);
@@ -47,7 +47,7 @@ export class AdminService {
       offset,
       limit,
       totalPages,
-      currentPage
+      currentPage,
     };
   }
 
@@ -55,11 +55,11 @@ export class AdminService {
     // Validate UUID formats
     UuidValidator.validateMultiple({
       'course ID': courseId,
-      'admin ID': adminId
+      'admin ID': adminId,
     });
 
     const course = await this.prisma.course.findUnique({
-      where: { id: courseId }
+      where: { id: courseId },
     });
 
     if (!course) {
@@ -70,7 +70,8 @@ export class AdminService {
       where: { id: courseId },
       data: {
         status: approveDto.status,
-        updated_at: new Date()
+        admin_notes: approveDto.admin_notes,
+        updated_at: new Date(),
       },
       include: {
         instructor: {
@@ -79,9 +80,9 @@ export class AdminService {
             first_name: true,
             last_name: true,
             email: true,
-          }
-        }
-      }
+          },
+        },
+      },
     });
 
     // Send notification to instructor if the course has an instructor

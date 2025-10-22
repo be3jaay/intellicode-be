@@ -218,6 +218,7 @@ model Course {
   course_invite_code String
   instructor_id      String?       @db.Uuid
   status             CourseStatus  @default(waiting_for_approval)
+  admin_notes        String?
   instructor         User?         @relation("InstructorCourses", fields: [instructor_id], references: [id])
   enrollments        Enrollment[]  @relation("CourseEnrollments")
   modules            Module[]      @relation("CourseModules")
@@ -466,6 +467,7 @@ model Notification {
 }
 
 enum NotificationType {
+  course_pending_approval
   course_approved
   course_rejected
   new_assignment

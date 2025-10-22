@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, NotFoundException, ForbiddenException } from '@nestjs/common';
 import {
   CreateCourseDto,
   CreateCourseWithFileDto,
@@ -87,14 +87,13 @@ export class CourseService {
       },
     });
 
-    await this.notificationsService.createNotification({
-      user_id: instructorId,
-      type: NotificationType.general as NotificationType,
-      title: 'New Course Created',
-      message: `A new course "${course.title}" has been created. Please review and approve it.`,
-      related_id: course.id,
-      related_type: NotificationRelatedType.course as NotificationRelatedType,
-    });
+    // Notify admins about the new course pending approval
+    const instructorName = `${course.instructor.first_name} ${course.instructor.last_name}`;
+    await this.notificationsService.notifyAdminsPendingCourse(
+      course.id,
+      course.title,
+      instructorName,
+    );
 
     return course;
   }
@@ -286,6 +285,12 @@ export class CourseService {
             email: true,
           },
         },
+        _count: {
+          select: {
+            enrollments: true,
+            modules: true,
+          },
+        },
       },
     });
 
@@ -293,7 +298,12 @@ export class CourseService {
       throw new NotFoundException(`Course with ID ${id} not found`);
     }
 
-    return course;
+    // Format course with count data
+    return {
+      ...course,
+      students_count: course._count.enrollments,
+      modules_count: course._count.modules,
+    };
   }
 
   async update(id: string, updateCourseDto: UpdateCourseDto) {
@@ -423,6 +433,64 @@ export class CourseService {
       pending_grades_count: pendingGradesCount,
       courses: formattedCourses,
       top_popular_courses: topPopularCourses,
+    };
+  }
+
+  async resubmitCourse(courseId: string, instructorId: string) {
+    UuidValidator.validate(courseId, 'course ID');
+    UuidValidator.validate(instructorId, 'instructor ID');
+
+    // Find the course and verify ownership
+    const course = await this.prisma.course.findUnique({
+      where: { id: courseId },
+      include: {
+        instructor: {
+          select: {
+            id: true,
+            first_name: true,
+            last_name: true,
+          },
+        },
+      },
+    });
+
+    if (!course) {
+      throw new NotFoundException('Course not found');
+    }
+
+    // Verify that the requesting user is the course instructor
+    if (course.instructor_id !== instructorId) {
+      throw new ForbiddenException('You are not authorized to resubmit this course');
+    }
+
+    // Only allow resubmission if course is rejected
+    if (course.status !== 'rejected') {
+      throw new ForbiddenException(
+        'Only rejected courses can be resubmitted. Current status: ' + course.status,
+      );
+    }
+
+    // Update course status to waiting_for_approval
+    const updatedCourse = await this.prisma.course.update({
+      where: { id: courseId },
+      data: {
+        status: 'waiting_for_approval',
+      },
+    });
+
+    // Notify admins about the resubmitted course
+    const instructorName = `${course.instructor.first_name} ${course.instructor.last_name}`;
+    await this.notificationsService.notifyAdminsPendingCourse(
+      courseId,
+      course.title,
+      instructorName,
+    );
+
+    return {
+      message: 'Course resubmitted successfully and is now pending approval',
+      status: updatedCourse.status,
+      course_id: updatedCourse.id,
+      course_title: updatedCourse.title,
     };
   }
 }

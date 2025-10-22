@@ -15,7 +15,9 @@ import {
 export class NotificationsService {
   constructor(private readonly prisma: PrismaService) {}
 
-  async createNotification(createNotificationDto: CreateNotificationDto): Promise<NotificationResponseDto> {
+  async createNotification(
+    createNotificationDto: CreateNotificationDto,
+  ): Promise<NotificationResponseDto> {
     // Validate UUID
     UuidValidator.validate(createNotificationDto.user_id, 'user ID');
 
@@ -48,7 +50,9 @@ export class NotificationsService {
     return this.formatNotificationResponse(notification);
   }
 
-  async createBulkNotifications(notifications: CreateNotificationDto[]): Promise<NotificationResponseDto[]> {
+  async createBulkNotifications(
+    notifications: CreateNotificationDto[],
+  ): Promise<NotificationResponseDto[]> {
     const createdNotifications = await Promise.all(
       notifications.map((notificationDto) => this.createNotification(notificationDto)),
     );
@@ -106,7 +110,10 @@ export class NotificationsService {
     };
   }
 
-  async getNotificationById(notificationId: string, userId: string): Promise<NotificationResponseDto> {
+  async getNotificationById(
+    notificationId: string,
+    userId: string,
+  ): Promise<NotificationResponseDto> {
     UuidValidator.validate(notificationId, 'notification ID');
     UuidValidator.validate(userId, 'user ID');
 
@@ -204,6 +211,38 @@ export class NotificationsService {
     return { unread_count };
   }
 
+  // Helper method to notify admins about pending course approval
+  async notifyAdminsPendingCourse(
+    courseId: string,
+    courseTitle: string,
+    instructorName: string,
+  ): Promise<void> {
+    // Get all admin users
+    const admins = await this.prisma.user.findMany({
+      where: {
+        role: 'admin',
+      },
+      select: {
+        id: true,
+      },
+    });
+
+    if (admins.length === 0) {
+      return;
+    }
+
+    // Create notifications for all admins
+    const notifications = admins.map((admin) => ({
+      user_id: admin.id,
+      type: NotificationType.course_pending_approval,
+      title: 'New Course Pending Approval',
+      message: `Instructor ${instructorName} has created a new course "${courseTitle}" that requires approval.`,
+      related_id: courseId,
+      related_type: NotificationRelatedType.course,
+    }));
+
+    await this.createBulkNotifications(notifications);
+  }
 
   // Helper method to create course approval notification
   async notifyInstructorCourseApproval(
@@ -280,4 +319,3 @@ export class NotificationsService {
     };
   }
 }
-
