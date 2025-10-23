@@ -1,4 +1,9 @@
-import { Injectable, NotFoundException, BadRequestException, ForbiddenException } from '@nestjs/common';
+import {
+  Injectable,
+  NotFoundException,
+  BadRequestException,
+  ForbiddenException,
+} from '@nestjs/common';
 import { PrismaService } from '@/core/prisma/prisma.service';
 import { SupabaseService } from '@/core/supabase/supabase.service';
 import { v4 as uuidv4 } from 'uuid';
@@ -17,7 +22,7 @@ import {
   AssignmentType,
   AssignmentSubtype,
   DifficultyLevel,
-  ExamQuestionType
+  ExamQuestionType,
 } from './dto/assignment.dto';
 import { NotificationsService } from '../notifications/notifications.service';
 
@@ -29,7 +34,11 @@ export class AssignmentService {
     private readonly notificationsService: NotificationsService,
   ) {}
 
-  async createAssignment(createAssignmentDto: CreateAssignmentDto, instructorId: string, moduleId: string): Promise<AssignmentResponseDto> {
+  async createAssignment(
+    createAssignmentDto: CreateAssignmentDto,
+    instructorId: string,
+    moduleId: string,
+  ): Promise<AssignmentResponseDto> {
     const { questions, attachment, ...assignmentData } = createAssignmentDto;
 
     // Validate module exists and belongs to instructor
@@ -37,21 +46,25 @@ export class AssignmentService {
       where: {
         id: moduleId,
         course: {
-          instructor_id: instructorId
-        }
+          instructor_id: instructorId,
+        },
       },
       include: {
-        course: true
-      }
+        course: true,
+      },
     });
 
     if (!module) {
-      throw new NotFoundException('Module not found or you do not have permission to create assignments in this module');
+      throw new NotFoundException(
+        'Module not found or you do not have permission to create assignments in this module',
+      );
     }
 
     // Auto-enable secured browser for quiz and exam types
-    const securedBrowser = assignmentData.secured_browser || 
-      (assignmentData.assignmentType === AssignmentType.activity || assignmentData.assignmentType === AssignmentType.exam);
+    const securedBrowser =
+      assignmentData.secured_browser ||
+      assignmentData.assignmentType === AssignmentType.activity ||
+      assignmentData.assignmentType === AssignmentType.exam;
 
     // Handle assignment subtype-specific logic
     const processedData = this.processAssignmentData(assignmentData, questions);
@@ -71,27 +84,29 @@ export class AssignmentService {
         is_published: false,
         secured_browser: securedBrowser,
         starter_code: processedData.starterCode,
-        questions: processedData.questions ? {
-          create: processedData.questions.map((question, index) => ({
-            id: uuidv4(),
-            question_text: question.question,
-            question_type: question.type,
-            points: question.points,
-            order_index: index + 1,
-            correct_answer: question.correct_answer,
-            correct_answers: question.correct_answers || [],
-            options: question.options || [],
-            explanation: question.explanation,
-            case_sensitive: question.case_sensitive || false,
-            is_true: question.is_true
-          }))
-        } : undefined
+        questions: processedData.questions
+          ? {
+              create: processedData.questions.map((question, index) => ({
+                id: uuidv4(),
+                question_text: question.question,
+                question_type: question.type,
+                points: question.points,
+                order_index: index + 1,
+                correct_answer: question.correct_answer,
+                correct_answers: question.correct_answers || [],
+                options: question.options || [],
+                explanation: question.explanation,
+                case_sensitive: question.case_sensitive || false,
+                is_true: question.is_true,
+              })),
+            }
+          : undefined,
       },
       include: {
         questions: {
-          orderBy: { order_index: 'asc' }
-        }
-      }
+          orderBy: { order_index: 'asc' },
+        },
+      },
     });
 
     // Handle file upload for file_upload assignments
@@ -101,7 +116,7 @@ export class AssignmentService {
           attachment,
           'assignments',
           'assignment-files',
-          module.course_id
+          module.course_id,
         );
 
         await this.prisma.fileStorage.create({
@@ -117,8 +132,8 @@ export class AssignmentService {
             storage_path: `assignments/${assignment.id}/${attachment.filename || attachment.name}`,
             course_id: module.course_id,
             module_id: moduleId,
-            assignment_id: assignment.id
-          }
+            assignment_id: assignment.id,
+          },
         });
       } catch (error) {
         // If file upload fails, delete the assignment
@@ -140,7 +155,12 @@ export class AssignmentService {
     return this.formatAssignmentResponse(assignment);
   }
 
-  async createAssignmentWithFile(createAssignmentDto: CreateAssignmentDto, instructorId: string, moduleId: string, attachmentFile: Express.Multer.File): Promise<AssignmentResponseDto> {
+  async createAssignmentWithFile(
+    createAssignmentDto: CreateAssignmentDto,
+    instructorId: string,
+    moduleId: string,
+    attachmentFile: Express.Multer.File,
+  ): Promise<AssignmentResponseDto> {
     const { questions, ...assignmentData } = createAssignmentDto;
 
     // Validate module exists and belongs to instructor
@@ -148,21 +168,25 @@ export class AssignmentService {
       where: {
         id: moduleId,
         course: {
-          instructor_id: instructorId
-        }
+          instructor_id: instructorId,
+        },
       },
       include: {
-        course: true
-      }
+        course: true,
+      },
     });
 
     if (!module) {
-      throw new NotFoundException('Module not found or you do not have permission to create assignments in this module');
+      throw new NotFoundException(
+        'Module not found or you do not have permission to create assignments in this module',
+      );
     }
 
     // Auto-enable secured browser for quiz and exam types
-    const securedBrowser = assignmentData.secured_browser || 
-      (assignmentData.assignmentType === AssignmentType.activity || assignmentData.assignmentType === AssignmentType.exam);
+    const securedBrowser =
+      assignmentData.secured_browser ||
+      assignmentData.assignmentType === AssignmentType.activity ||
+      assignmentData.assignmentType === AssignmentType.exam;
 
     // Handle assignment subtype-specific logic
     const processedData = this.processAssignmentData(assignmentData, questions);
@@ -182,27 +206,29 @@ export class AssignmentService {
         is_published: false,
         secured_browser: securedBrowser,
         starter_code: processedData.starterCode,
-        questions: processedData.questions ? {
-          create: processedData.questions.map((question, index) => ({
-            id: uuidv4(),
-            question_text: question.question,
-            question_type: question.type,
-            points: question.points,
-            order_index: index + 1,
-            correct_answer: question.correct_answer,
-            correct_answers: question.correct_answers || [],
-            options: question.options || [],
-            explanation: question.explanation,
-            case_sensitive: question.case_sensitive || false,
-            is_true: question.is_true
-          }))
-        } : undefined
+        questions: processedData.questions
+          ? {
+              create: processedData.questions.map((question, index) => ({
+                id: uuidv4(),
+                question_text: question.question,
+                question_type: question.type,
+                points: question.points,
+                order_index: index + 1,
+                correct_answer: question.correct_answer,
+                correct_answers: question.correct_answers || [],
+                options: question.options || [],
+                explanation: question.explanation,
+                case_sensitive: question.case_sensitive || false,
+                is_true: question.is_true,
+              })),
+            }
+          : undefined,
       },
       include: {
         questions: {
-          orderBy: { order_index: 'asc' }
-        }
-      }
+          orderBy: { order_index: 'asc' },
+        },
+      },
     });
 
     // Handle file upload for assignments
@@ -212,7 +238,7 @@ export class AssignmentService {
           attachmentFile,
           'assignments',
           'assignment-files',
-          module.course_id
+          module.course_id,
         );
 
         await this.prisma.fileStorage.create({
@@ -228,8 +254,8 @@ export class AssignmentService {
             storage_path: `assignments/${assignment.id}/${attachmentFile.filename || attachmentFile.originalname}`,
             course_id: module.course_id,
             module_id: moduleId,
-            assignment_id: assignment.id
-          }
+            assignment_id: assignment.id,
+          },
         });
       } catch (error) {
         // If file upload fails, delete the assignment
@@ -251,27 +277,50 @@ export class AssignmentService {
     return this.formatAssignmentResponse(assignment);
   }
 
-  async getModuleAssignments(moduleId: string, query: AssignmentQueryDto, userId?: string): Promise<PaginatedAssignmentsResponseDto> {
+  async getModuleAssignments(
+    moduleId: string,
+    query: AssignmentQueryDto,
+    userId?: string,
+  ): Promise<PaginatedAssignmentsResponseDto> {
     UuidValidator.validate(moduleId, 'module ID');
 
-    // Check if user has access to the module
+    // Check if user has access to the module and determine if they are the instructor
+    let isInstructor = false;
     if (userId) {
       const module = await this.prisma.module.findFirst({
         where: {
           id: moduleId,
           OR: [
             { course: { instructor_id: userId } },
-            { course: { enrollments: { some: { student_id: userId, status: 'active' } } } }
-          ]
-        }
+            { course: { enrollments: { some: { student_id: userId, status: 'active' } } } },
+          ],
+        },
+        include: {
+          course: {
+            select: {
+              instructor_id: true,
+            },
+          },
+        },
       });
 
       if (!module) {
         throw new NotFoundException('Module not found or you do not have access to it');
       }
+
+      isInstructor = module.course.instructor_id === userId;
     }
 
-    const { offset = 0, limit = 10, assignment_type, assignment_subtype, difficulty, is_published, secured_browser, search } = query;
+    const {
+      offset = 0,
+      limit = 10,
+      assignment_type,
+      assignment_subtype,
+      difficulty,
+      is_published,
+      secured_browser,
+      search,
+    } = query;
 
     const where: any = { module_id: moduleId };
 
@@ -298,7 +347,7 @@ export class AssignmentService {
     if (search) {
       where.title = {
         contains: search,
-        mode: 'insensitive'
+        mode: 'insensitive',
       };
     }
 
@@ -310,23 +359,25 @@ export class AssignmentService {
       take: limit,
       include: {
         questions: {
-          orderBy: { order_index: 'asc' }
+          orderBy: { order_index: 'asc' },
         },
-        attachments: true
+        attachments: true,
       },
-      orderBy: { created_at: 'desc' }
+      orderBy: { created_at: 'desc' },
     });
 
     const totalPages = Math.ceil(total / limit);
     const currentPage = Math.floor(offset / limit) + 1;
 
     return {
-      data: assignments.map(assignment => this.formatAssignmentResponse(assignment)),
+      data: assignments.map((assignment) =>
+        this.formatAssignmentResponse(assignment, isInstructor),
+      ),
       total,
       offset,
       limit,
       totalPages,
-      currentPage
+      currentPage,
     };
   }
 
@@ -336,29 +387,38 @@ export class AssignmentService {
     const assignment = await this.prisma.assignment.findFirst({
       where: {
         id: assignmentId,
-        ...(userId ? {
-          OR: [
-            { module: { course: { instructor_id: userId } } },
-            { module: { course: { enrollments: { some: { student_id: userId, status: 'active' } } } } }
-          ]
-        } : {})
+        ...(userId
+          ? {
+              OR: [
+                { module: { course: { instructor_id: userId } } },
+                {
+                  module: {
+                    course: { enrollments: { some: { student_id: userId, status: 'active' } } },
+                  },
+                },
+              ],
+            }
+          : {}),
       },
       include: {
         questions: {
-          orderBy: { order_index: 'asc' }
+          orderBy: { order_index: 'asc' },
         },
         attachments: true,
         module: {
           include: {
-            course: true
-          }
-        }
-      }
+            course: true,
+          },
+        },
+      },
     });
 
     if (!assignment) {
       throw new NotFoundException('Assignment not found or you do not have access to it');
     }
+
+    // Determine if the current user is the instructor
+    const isInstructor = userId && assignment.module.course.instructor_id === userId;
 
     // Determine if the current user already submitted this assignment
     let alreadySubmitted = false;
@@ -374,12 +434,16 @@ export class AssignmentService {
     }
 
     return {
-      ...this.formatAssignmentResponse(assignment),
+      ...this.formatAssignmentResponse(assignment, isInstructor),
       already_submitted: alreadySubmitted,
     };
   }
 
-  async updateAssignment(assignmentId: string, updateAssignmentDto: UpdateAssignmentDto, instructorId: string): Promise<AssignmentResponseDto> {
+  async updateAssignment(
+    assignmentId: string,
+    updateAssignmentDto: UpdateAssignmentDto,
+    instructorId: string,
+  ): Promise<AssignmentResponseDto> {
     UuidValidator.validate(assignmentId, 'assignment ID');
 
     // Check if assignment exists and belongs to instructor
@@ -388,29 +452,33 @@ export class AssignmentService {
         id: assignmentId,
         module: {
           course: {
-            instructor_id: instructorId
-          }
-        }
+            instructor_id: instructorId,
+          },
+        },
       },
       include: {
         module: {
           include: {
-            course: true
-          }
-        }
-      }
+            course: true,
+          },
+        },
+      },
     });
 
     if (!existingAssignment) {
-      throw new NotFoundException('Assignment not found or you do not have permission to update it');
+      throw new NotFoundException(
+        'Assignment not found or you do not have permission to update it',
+      );
     }
 
     const { questions, ...assignmentData } = updateAssignmentDto;
 
     // Auto-enable secured browser for quiz and exam types if not explicitly set
-    const securedBrowser = assignmentData.secured_browser !== undefined ? 
-      assignmentData.secured_browser : 
-      (assignmentData.assignmentType === AssignmentType.activity || assignmentData.assignmentType === AssignmentType.exam);
+    const securedBrowser =
+      assignmentData.secured_browser !== undefined
+        ? assignmentData.secured_browser
+        : assignmentData.assignmentType === AssignmentType.activity ||
+          assignmentData.assignmentType === AssignmentType.exam;
 
     // Handle assignment subtype-specific logic
     const processedData = this.processAssignmentData(assignmentData, questions);
@@ -430,29 +498,31 @@ export class AssignmentService {
         difficulty: processedData.difficulty,
         secured_browser: securedBrowser,
         starter_code: processedData.starterCode,
-        questions: processedData.questions ? {
-          deleteMany: {},
-          create: processedData.questions.map((question, index) => ({
-            id: uuidv4(),
-            question_text: question.question,
-            question_type: question.type,
-            points: question.points,
-            order_index: index + 1,
-            correct_answer: question.correct_answer,
-            correct_answers: question.correct_answers || [],
-            options: question.options || [],
-            explanation: question.explanation,
-            case_sensitive: question.case_sensitive || false,
-            is_true: question.is_true
-          }))
-        } : undefined
+        questions: processedData.questions
+          ? {
+              deleteMany: {},
+              create: processedData.questions.map((question, index) => ({
+                id: uuidv4(),
+                question_text: question.question,
+                question_type: question.type,
+                points: question.points,
+                order_index: index + 1,
+                correct_answer: question.correct_answer,
+                correct_answers: question.correct_answers || [],
+                options: question.options || [],
+                explanation: question.explanation,
+                case_sensitive: question.case_sensitive || false,
+                is_true: question.is_true,
+              })),
+            }
+          : undefined,
       },
       include: {
         questions: {
-          orderBy: { order_index: 'asc' }
+          orderBy: { order_index: 'asc' },
         },
-        attachments: true
-      }
+        attachments: true,
+      },
     });
 
     // Send notifications to enrolled students if assignment is being published for the first time
@@ -477,19 +547,21 @@ export class AssignmentService {
         id: assignmentId,
         module: {
           course: {
-            instructor_id: instructorId
-          }
-        }
-      }
+            instructor_id: instructorId,
+          },
+        },
+      },
     });
 
     if (!assignment) {
-      throw new NotFoundException('Assignment not found or you do not have permission to delete it');
+      throw new NotFoundException(
+        'Assignment not found or you do not have permission to delete it',
+      );
     }
 
     // Check if there are any submissions
     const submissionCount = await this.prisma.assignmentSubmission.count({
-      where: { assignment_id: assignmentId }
+      where: { assignment_id: assignmentId },
     });
 
     if (submissionCount > 0) {
@@ -497,18 +569,22 @@ export class AssignmentService {
     }
 
     await this.prisma.assignment.delete({
-      where: { id: assignmentId }
+      where: { id: assignmentId },
     });
   }
 
-  async submitAssignment(assignmentId: string, submissionDto: AssignmentSubmissionDto, studentId: string): Promise<AssignmentSubmissionResponseDto> {
+  async submitAssignment(
+    assignmentId: string,
+    submissionDto: AssignmentSubmissionDto,
+    studentId: string,
+  ): Promise<AssignmentSubmissionResponseDto> {
     UuidValidator.validate(assignmentId, 'assignment ID');
 
     // Check if assignment exists and is published
     const assignment = await this.prisma.assignment.findFirst({
       where: {
         id: assignmentId,
-        is_published: true
+        is_published: true,
       },
       include: {
         module: {
@@ -518,14 +594,14 @@ export class AssignmentService {
                 enrollments: {
                   where: {
                     student_id: studentId,
-                    status: 'active'
-                  }
-                }
-              }
-            }
-          }
-        }
-      }
+                    status: 'active',
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
     });
 
     if (!assignment) {
@@ -540,8 +616,8 @@ export class AssignmentService {
     const existingSubmission = await this.prisma.assignmentSubmission.findFirst({
       where: {
         assignment_id: assignmentId,
-        student_id: studentId
-      }
+        student_id: studentId,
+      },
     });
 
     if (existingSubmission) {
@@ -551,7 +627,7 @@ export class AssignmentService {
     // Calculate total points
     const totalPoints = await this.prisma.assignmentQuestion.aggregate({
       where: { assignment_id: assignmentId },
-      _sum: { points: true }
+      _sum: { points: true },
     });
 
     const maxScore = totalPoints._sum.points || 0;
@@ -563,36 +639,165 @@ export class AssignmentService {
         assignment_id: assignmentId,
         student_id: studentId,
         max_score: maxScore,
-        status: 'submitted'
-      }
+        status: 'submitted',
+      },
     });
 
     // Handle quiz answers
     if (submissionDto.answers && submissionDto.answers.length > 0) {
-      const answers = submissionDto.answers.map(answer => ({
-        id: uuidv4(),
-        submission_id: submission.id,
-        question_id: answer.question_id,
-        answer_text: answer.answer_text,
-        is_correct: answer.is_correct || false,
-        points_earned: answer.points_earned || 0
-      }));
+      // Fetch all questions with correct answers
+      const questions = await this.prisma.assignmentQuestion.findMany({
+        where: {
+          assignment_id: assignmentId,
+          id: { in: submissionDto.answers.map((a) => a.question_id) },
+        },
+      });
 
-      // Validate that all question_ids are valid UUIDs
-      for (const answer of answers) {
+      // Create a map for quick lookup
+      const questionMap = new Map(questions.map((q) => [q.id, q]));
+
+      const answers = submissionDto.answers.map((answer) => {
+        // Validate question ID
         UuidValidator.validate(answer.question_id, 'question ID');
-      }
+
+        const question = questionMap.get(answer.question_id);
+        if (!question) {
+          throw new BadRequestException(
+            `Question ${answer.question_id} not found in this assignment`,
+          );
+        }
+
+        let isCorrect = false;
+        let pointsEarned = 0;
+
+        // Check correctness based on question type
+        switch (question.question_type) {
+          case 'multiple_choice':
+            // For multiple choice, compare with correct_answer
+            if (question.correct_answer) {
+              const studentAnswer = question.case_sensitive
+                ? answer.answer_text
+                : answer.answer_text?.toLowerCase();
+              const correctAnswer = question.case_sensitive
+                ? question.correct_answer
+                : question.correct_answer.toLowerCase();
+              isCorrect = studentAnswer === correctAnswer;
+            }
+            break;
+
+          case 'true_false':
+            // For true/false, compare with is_true
+            if (question.is_true !== null && question.is_true !== undefined) {
+              const studentAnswer = answer.answer_text?.toLowerCase() === 'true';
+              isCorrect = studentAnswer === question.is_true;
+            }
+            break;
+
+          case 'identification':
+            // For identification, check against correct_answer or correct_answers array
+            if (question.correct_answers && question.correct_answers.length > 0) {
+              // Check if answer is in the array of correct answers
+              const studentAnswer = question.case_sensitive
+                ? answer.answer_text?.trim()
+                : answer.answer_text?.trim().toLowerCase();
+
+              isCorrect = question.correct_answers.some((correctAns) => {
+                const compareAns = question.case_sensitive
+                  ? correctAns.trim()
+                  : correctAns.trim().toLowerCase();
+                return studentAnswer === compareAns;
+              });
+            } else if (question.correct_answer) {
+              // Single correct answer
+              const studentAnswer = question.case_sensitive
+                ? answer.answer_text?.trim()
+                : answer.answer_text?.trim().toLowerCase();
+              const correctAnswer = question.case_sensitive
+                ? question.correct_answer.trim()
+                : question.correct_answer.trim().toLowerCase();
+              isCorrect = studentAnswer === correctAnswer;
+            }
+            break;
+
+          case 'enumeration':
+            // For enumeration, split by newlines and check each answer
+            if (question.correct_answers && question.correct_answers.length > 0) {
+              // Split student's answer by newlines and trim each
+              const studentAnswers =
+                answer.answer_text
+                  ?.split('\n')
+                  .map((ans) => ans.trim())
+                  .filter((ans) => ans.length > 0) || [];
+
+              // Normalize correct answers
+              const correctAnswersNormalized = question.correct_answers.map((ans) =>
+                question.case_sensitive ? ans.trim() : ans.trim().toLowerCase(),
+              );
+
+              // Normalize student answers
+              const studentAnswersNormalized = studentAnswers.map((ans) =>
+                question.case_sensitive ? ans : ans.toLowerCase(),
+              );
+
+              // Count how many correct answers the student provided
+              let correctCount = 0;
+              for (const studentAns of studentAnswersNormalized) {
+                if (correctAnswersNormalized.includes(studentAns)) {
+                  correctCount++;
+                }
+              }
+
+              // Calculate score based on percentage of correct answers
+              // Full credit if all correct answers are provided
+              const totalCorrectAnswers = question.correct_answers.length;
+              const percentageCorrect = correctCount / totalCorrectAnswers;
+
+              // Award full points if 100% correct, or partial credit
+              if (
+                percentageCorrect === 1 &&
+                studentAnswersNormalized.length === totalCorrectAnswers
+              ) {
+                // Full credit: all correct answers provided and no extra wrong answers
+                isCorrect = true;
+                pointsEarned = question.points;
+              } else if (correctCount > 0) {
+                // Partial credit based on percentage
+                isCorrect = false; // Not fully correct
+                pointsEarned = Math.round(question.points * percentageCorrect);
+              } else {
+                isCorrect = false;
+                pointsEarned = 0;
+              }
+            }
+            break;
+        }
+
+        // Award points if correct (only for non-enumeration questions)
+        // For enumeration, points are already calculated in the switch statement
+        if (isCorrect && question.question_type !== 'enumeration') {
+          pointsEarned = question.points;
+        }
+
+        return {
+          id: uuidv4(),
+          submission_id: submission.id,
+          question_id: answer.question_id,
+          answer_text: answer.answer_text,
+          is_correct: isCorrect,
+          points_earned: pointsEarned,
+        };
+      });
 
       await this.prisma.assignmentAnswer.createMany({
-        data: answers
+        data: answers,
       });
 
       // Calculate and update the total score
       const totalScore = answers.reduce((sum, answer) => sum + (answer.points_earned || 0), 0);
-      
+
       await this.prisma.assignmentSubmission.update({
         where: { id: submission.id },
-        data: { score: totalScore }
+        data: { score: totalScore },
       });
     }
 
@@ -604,7 +809,7 @@ export class AssignmentService {
             file,
             'assignment-submissions',
             'submission-files',
-            assignment.module.course_id
+            assignment.module.course_id,
           );
 
           await this.prisma.fileStorage.create({
@@ -621,8 +826,8 @@ export class AssignmentService {
               course_id: assignment.module.course_id,
               module_id: assignment.module_id,
               assignment_id: assignmentId,
-              submission_id: submission.id
-            }
+              submission_id: submission.id,
+            },
           });
         } catch (error) {
           // If file upload fails, delete the submission
@@ -637,32 +842,38 @@ export class AssignmentService {
       where: { id: submission.id },
       include: {
         answers: true,
-        files: true
-      }
+        files: true,
+      },
     });
 
     return this.formatSubmissionResponse(updatedSubmission);
   }
 
-  async getStudentSubmissions(assignmentId: string, studentId: string): Promise<AssignmentSubmissionResponseDto[]> {
+  async getStudentSubmissions(
+    assignmentId: string,
+    studentId: string,
+  ): Promise<AssignmentSubmissionResponseDto[]> {
     UuidValidator.validate(assignmentId, 'assignment ID');
 
     const submissions = await this.prisma.assignmentSubmission.findMany({
       where: {
         assignment_id: assignmentId,
-        student_id: studentId
+        student_id: studentId,
       },
       include: {
         answers: true,
-        files: true
+        files: true,
       },
-      orderBy: { submitted_at: 'desc' }
+      orderBy: { submitted_at: 'desc' },
     });
 
-    return submissions.map(submission => this.formatSubmissionResponse(submission));
+    return submissions.map((submission) => this.formatSubmissionResponse(submission));
   }
 
-  async getAssignmentStudentScores(assignmentId: string, instructorId: string): Promise<StudentScoreDto[]> {
+  async getAssignmentStudentScores(
+    assignmentId: string,
+    instructorId: string,
+  ): Promise<StudentScoreDto[]> {
     UuidValidator.validate(assignmentId, 'assignment ID');
 
     // Check if assignment exists and belongs to instructor
@@ -671,23 +882,25 @@ export class AssignmentService {
         id: assignmentId,
         module: {
           course: {
-            instructor_id: instructorId
-          }
-        }
+            instructor_id: instructorId,
+          },
+        },
       },
       include: {
-        questions: true
-      }
+        questions: true,
+      },
     });
 
     if (!assignment) {
-      throw new NotFoundException('Assignment not found or you do not have permission to view scores');
+      throw new NotFoundException(
+        'Assignment not found or you do not have permission to view scores',
+      );
     }
 
     // Get all submissions for this assignment
     const submissions = await this.prisma.assignmentSubmission.findMany({
       where: {
-        assignment_id: assignmentId
+        assignment_id: assignmentId,
       },
       include: {
         student: {
@@ -696,27 +909,28 @@ export class AssignmentService {
             first_name: true,
             last_name: true,
             email: true,
-            student_number: true
-          }
+            student_number: true,
+          },
         },
         answers: {
           include: {
-            question: true
-          }
-        }
+            question: true,
+          },
+        },
       },
-      orderBy: { submitted_at: 'desc' }
+      orderBy: { submitted_at: 'desc' },
     });
 
-    return submissions.map(submission => {
-      const percentage = submission.max_score > 0 ? Math.round((submission.score / submission.max_score) * 100) : 0;
-      
-      const questionScores = submission.answers.map(answer => ({
+    return submissions.map((submission) => {
+      const percentage =
+        submission.max_score > 0 ? Math.round((submission.score / submission.max_score) * 100) : 0;
+
+      const questionScores = submission.answers.map((answer) => ({
         question_id: answer.question_id,
         question_text: answer.question.question_text,
         points_earned: answer.points_earned,
         max_points: answer.question.points,
-        is_correct: answer.is_correct
+        is_correct: answer.is_correct,
       }));
 
       return {
@@ -729,12 +943,15 @@ export class AssignmentService {
         percentage,
         status: submission.status,
         submitted_at: submission.submitted_at,
-        question_scores: questionScores
+        question_scores: questionScores,
       };
     });
   }
 
-  async getAssignmentSubmissionsForGrading(assignmentId: string, instructorId: string): Promise<AssignmentGradingResponseDto[]> {
+  async getAssignmentSubmissionsForGrading(
+    assignmentId: string,
+    instructorId: string,
+  ): Promise<AssignmentGradingResponseDto[]> {
     UuidValidator.validate(assignmentId, 'assignment ID');
 
     // Check if assignment exists and belongs to instructor
@@ -743,20 +960,22 @@ export class AssignmentService {
         id: assignmentId,
         module: {
           course: {
-            instructor_id: instructorId
-          }
-        }
-      }
+            instructor_id: instructorId,
+          },
+        },
+      },
     });
 
     if (!assignment) {
-      throw new NotFoundException('Assignment not found or you do not have permission to view submissions');
+      throw new NotFoundException(
+        'Assignment not found or you do not have permission to view submissions',
+      );
     }
 
     // Get all submissions for this assignment
     const submissions = await this.prisma.assignmentSubmission.findMany({
       where: {
-        assignment_id: assignmentId
+        assignment_id: assignmentId,
       },
       include: {
         student: {
@@ -765,15 +984,15 @@ export class AssignmentService {
             first_name: true,
             last_name: true,
             email: true,
-            student_number: true
-          }
+            student_number: true,
+          },
         },
-        files: true
+        files: true,
       },
-      orderBy: { submitted_at: 'desc' }
+      orderBy: { submitted_at: 'desc' },
     });
 
-    return submissions.map(submission => ({
+    return submissions.map((submission) => ({
       id: submission.id,
       assignment_id: submission.assignment_id,
       student_id: submission.student_id,
@@ -788,12 +1007,15 @@ export class AssignmentService {
         first_name: submission.student.first_name,
         last_name: submission.student.last_name,
         email: submission.student.email,
-        student_number: submission.student.student_number
-      }
+        student_number: submission.student.student_number,
+      },
     }));
   }
 
-  async manuallyGradeSubmission(gradingDto: ManualGradingDto, instructorId: string): Promise<AssignmentGradingResponseDto> {
+  async manuallyGradeSubmission(
+    gradingDto: ManualGradingDto,
+    instructorId: string,
+  ): Promise<AssignmentGradingResponseDto> {
     UuidValidator.validate(gradingDto.submission_id, 'submission ID');
 
     // Check if submission exists and instructor has permission
@@ -803,10 +1025,10 @@ export class AssignmentService {
         assignment: {
           module: {
             course: {
-              instructor_id: instructorId
-            }
-          }
-        }
+              instructor_id: instructorId,
+            },
+          },
+        },
       },
       include: {
         student: {
@@ -815,11 +1037,11 @@ export class AssignmentService {
             first_name: true,
             last_name: true,
             email: true,
-            student_number: true
-          }
+            student_number: true,
+          },
         },
-        files: true
-      }
+        files: true,
+      },
     });
 
     if (!submission) {
@@ -831,7 +1053,7 @@ export class AssignmentService {
       where: { id: gradingDto.submission_id },
       data: {
         score: gradingDto.score,
-        status: gradingDto.mark_as_graded ? 'graded' : 'submitted'
+        status: gradingDto.mark_as_graded ? 'graded' : 'submitted',
       },
       include: {
         student: {
@@ -840,11 +1062,11 @@ export class AssignmentService {
             first_name: true,
             last_name: true,
             email: true,
-            student_number: true
-          }
+            student_number: true,
+          },
         },
-        files: true
-      }
+        files: true,
+      },
     });
 
     return {
@@ -862,12 +1084,15 @@ export class AssignmentService {
         first_name: updatedSubmission.student.first_name,
         last_name: updatedSubmission.student.last_name,
         email: updatedSubmission.student.email,
-        student_number: updatedSubmission.student.student_number
-      }
+        student_number: updatedSubmission.student.student_number,
+      },
     };
   }
 
-  private formatAssignmentResponse(assignment: any): AssignmentResponseDto {
+  private formatAssignmentResponse(
+    assignment: any,
+    showAnswers: boolean = true,
+  ): AssignmentResponseDto {
     return {
       id: assignment.id,
       title: assignment.title,
@@ -883,20 +1108,21 @@ export class AssignmentService {
       created_at: assignment.created_at,
       updated_at: assignment.updated_at,
       attachments: assignment.attachments,
-      questions: assignment.questions?.map(q => ({
+      questions: assignment.questions?.map((q) => ({
         id: q.id,
         question: q.question_text,
         type: q.question_type,
         points: q.points,
-        correct_answer: q.correct_answer,
-        correct_answers: q.correct_answers,
-        options: q.options,
-        explanation: q.explanation,
-        case_sensitive: q.case_sensitive,
-        is_true: q.is_true
+        // Hide correct answers from students, show to instructors
+        correct_answer: showAnswers ? q.correct_answer : null,
+        correct_answers: showAnswers ? q.correct_answers : [],
+        options: q.options, // Options are always shown (for multiple choice)
+        explanation: showAnswers ? q.explanation : null, // Hide explanation from students
+        case_sensitive: showAnswers ? q.case_sensitive : null,
+        is_true: showAnswers ? q.is_true : null, // Hide correct answer for true/false
       })),
       starterCode: assignment.starter_code,
-      already_submitted: false
+      already_submitted: false,
     };
   }
 
@@ -910,7 +1136,7 @@ export class AssignmentService {
       submitted_at: submission.submitted_at,
       status: submission.status,
       answers: submission.answers,
-      files: submission.files
+      files: submission.files,
     };
   }
 
