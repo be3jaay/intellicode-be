@@ -849,6 +849,131 @@ export class AssignmentService {
     return this.formatSubmissionResponse(updatedSubmission);
   }
 
+  async submitAssignmentWithFiles(
+    assignmentId: string,
+    files: Express.Multer.File[],
+    studentId: string,
+  ): Promise<AssignmentSubmissionResponseDto> {
+    UuidValidator.validate(assignmentId, 'assignment ID');
+
+    // Validate that files are provided
+    if (!files || files.length === 0) {
+      throw new BadRequestException('At least one file must be uploaded for file_upload assignments');
+    }
+
+    // Check if assignment exists and is published
+    const assignment = await this.prisma.assignment.findFirst({
+      where: {
+        id: assignmentId,
+        is_published: true,
+      },
+      include: {
+        module: {
+          include: {
+            course: {
+              include: {
+                enrollments: {
+                  where: {
+                    student_id: studentId,
+                    status: 'active',
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
+    });
+
+    if (!assignment) {
+      throw new NotFoundException('Assignment not found or not published');
+    }
+
+    if (assignment.module.course.enrollments.length === 0) {
+      throw new ForbiddenException('You are not enrolled in this course');
+    }
+
+    // Verify assignment is file_upload type
+    if (assignment.assignment_subtype !== 'file_upload') {
+      throw new BadRequestException('This endpoint is only for file_upload assignments. Use the standard submit endpoint for other types.');
+    }
+
+    // Check if student already submitted
+    const existingSubmission = await this.prisma.assignmentSubmission.findFirst({
+      where: {
+        assignment_id: assignmentId,
+        student_id: studentId,
+      },
+    });
+
+    if (existingSubmission) {
+      throw new BadRequestException('You have already submitted this assignment');
+    }
+
+    // For file upload assignments, max_score is the assignment's points
+    const maxScore = assignment.points || 0;
+
+    // Create submission
+    const submission = await this.prisma.assignmentSubmission.create({
+      data: {
+        id: uuidv4(),
+        assignment_id: assignmentId,
+        student_id: studentId,
+        max_score: maxScore,
+        score: 0, // Will be graded manually by instructor
+        status: 'submitted',
+      },
+    });
+
+    // Upload files to Supabase and store references
+    for (const file of files) {
+      try {
+        const fileUrl = await this.supabaseService.uploadFile(
+          file,
+          'assignment-submissions',
+          'submission-files',
+          assignment.module.course_id,
+        );
+
+        await this.prisma.fileStorage.create({
+          data: {
+            id: uuidv4(),
+            filename: file.filename || file.originalname,
+            original_name: file.originalname,
+            file_type: this.getFileTypeFromMime(file.mimetype),
+            category: 'assignment',
+            mime_type: file.mimetype,
+            size: file.size,
+            public_url: fileUrl,
+            storage_path: `assignment-submissions/${submission.id}/${file.originalname}`,
+            course_id: assignment.module.course_id,
+            module_id: assignment.module_id,
+            assignment_id: assignmentId,
+            submission_id: submission.id,
+          },
+        });
+      } catch (error) {
+        // If file upload fails, delete the submission and all previously uploaded files
+        await this.prisma.fileStorage.deleteMany({
+          where: { submission_id: submission.id },
+        });
+        await this.prisma.assignmentSubmission.delete({ where: { id: submission.id } });
+        throw new BadRequestException(`Failed to upload submission file: ${error.message}`);
+      }
+    }
+
+    // Fetch the submission with files
+    const updatedSubmission = await this.prisma.assignmentSubmission.findUnique({
+      where: { id: submission.id },
+      include: {
+        answers: true,
+        files: true,
+      },
+    });
+
+    return this.formatSubmissionResponse(updatedSubmission);
+  }
+
   async getStudentSubmissions(
     assignmentId: string,
     studentId: string,

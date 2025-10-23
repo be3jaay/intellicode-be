@@ -198,6 +198,9 @@ model User {
   assignment_submissions AssignmentSubmission[] @relation("StudentAssignmentSubmissions")
   lesson_progress LessonProgress[] @relation("StudentLessonProgress")
   notifications   Notification[] @relation("UserNotifications")
+  certificates         CourseCertificate[] @relation("StudentCertificates")
+  issued_certificates  CourseCertificate[] @relation("IssuedCertificates")
+  revoked_certificates CourseCertificate[] @relation("RevokedCertificates")
 
   @@index([email])
   @@index([role])
@@ -219,11 +222,13 @@ model Course {
   instructor_id      String?       @db.Uuid
   status             CourseStatus  @default(waiting_for_approval)
   admin_notes        String?
+  passing_grade      Float?
   instructor         User?         @relation("InstructorCourses", fields: [instructor_id], references: [id])
   enrollments        Enrollment[]  @relation("CourseEnrollments")
   modules            Module[]      @relation("CourseModules")
   files              FileStorage[] @relation("CourseFiles")
   grade_weights      CourseGradeWeights? @relation("CourseGradeWeights")
+  certificates       CourseCertificate[] @relation("CourseCertificates")
 
   @@index([title])
   @@index([category])
@@ -495,4 +500,35 @@ model CourseGradeWeights {
 
   @@index([course_id])
   @@map("course_grade_weights")
+}
+
+model CourseCertificate {
+  id                String             @id @db.Uuid
+  course_id         String             @db.Uuid
+  student_id        String             @db.Uuid
+  issued_by         String             @db.Uuid
+  issued_at         DateTime           @default(now())
+  final_grade       Float
+  status            CertificateStatus  @default(active)
+  revoked_at        DateTime?
+  revoked_by        String?            @db.Uuid
+  revocation_reason String?
+  created_at        DateTime           @default(now())
+  updated_at        DateTime           @updatedAt
+  
+  course            Course             @relation("CourseCertificates", fields: [course_id], references: [id])
+  student           User               @relation("StudentCertificates", fields: [student_id], references: [id])
+  issuer            User               @relation("IssuedCertificates", fields: [issued_by], references: [id])
+  revoker           User?              @relation("RevokedCertificates", fields: [revoked_by], references: [id])
+
+  @@unique([course_id, student_id])
+  @@index([course_id])
+  @@index([student_id])
+  @@index([status])
+  @@map("course_certificates")
+}
+
+enum CertificateStatus {
+  active
+  revoked
 }

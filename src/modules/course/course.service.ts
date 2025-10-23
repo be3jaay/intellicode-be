@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException, ForbiddenException } from '@nestjs/common';
+import { Injectable, NotFoundException, ForbiddenException, BadRequestException } from '@nestjs/common';
 import {
   CreateCourseDto,
   CreateCourseWithFileDto,
@@ -15,6 +15,7 @@ import { UuidValidator } from '@/common/utils/uuid.validator';
 import { Course, NotificationRelatedType, NotificationType } from '@prisma/client';
 import { InstructorAnalyticsDto } from './dto/instructor-analytics.dto';
 import { NotificationsService } from '../notifications/notifications.service';
+import { SetPassingGradeDto } from './dto/certificate.dto';
 
 @Injectable()
 export class CourseService {
@@ -491,6 +492,51 @@ export class CourseService {
       status: updatedCourse.status,
       course_id: updatedCourse.id,
       course_title: updatedCourse.title,
+    };
+  }
+
+  async setPassingGrade(
+    courseId: string,
+    instructorId: string,
+    setPassingGradeDto: SetPassingGradeDto,
+  ) {
+    UuidValidator.validateMultiple({
+      'course ID': courseId,
+      'instructor ID': instructorId,
+    });
+
+    // Find the course and verify ownership
+    const course = await this.prisma.course.findUnique({
+      where: { id: courseId },
+    });
+
+    if (!course) {
+      throw new NotFoundException('Course not found');
+    }
+
+    // Verify that the requesting user is the course instructor
+    if (course.instructor_id !== instructorId) {
+      throw new ForbiddenException('You are not authorized to set passing grade for this course');
+    }
+
+    // Validate passing grade
+    if (setPassingGradeDto.passing_grade < 0 || setPassingGradeDto.passing_grade > 100) {
+      throw new BadRequestException('Passing grade must be between 0 and 100');
+    }
+
+    // Update course passing grade
+    const updatedCourse = await this.prisma.course.update({
+      where: { id: courseId },
+      data: {
+        passing_grade: setPassingGradeDto.passing_grade,
+      },
+    });
+
+    return {
+      message: 'Passing grade updated successfully',
+      course_id: updatedCourse.id,
+      course_title: updatedCourse.title,
+      passing_grade: updatedCourse.passing_grade,
     };
   }
 }
