@@ -1,31 +1,45 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { IsString, IsOptional, IsInt, IsBoolean, IsEnum, IsArray, IsDateString, IsUUID, Min, Max, ValidateNested, IsObject, Allow } from 'class-validator';
+import {
+  IsString,
+  IsOptional,
+  IsInt,
+  IsBoolean,
+  IsEnum,
+  IsArray,
+  IsDateString,
+  IsUUID,
+  Min,
+  Max,
+  ValidateNested,
+  IsObject,
+  Allow,
+} from 'class-validator';
 import { Type } from 'class-transformer';
 import { IsValidAssignmentSubtype } from '@/common/validators/assignment-subtype.validator';
 
 export enum AssignmentType {
   assignment = 'assignment',
   activity = 'activity',
-  exam = 'exam'
+  exam = 'exam',
 }
 
 export enum AssignmentSubtype {
   code_sandbox = 'code_sandbox',
   quiz_form = 'quiz_form',
-  file_upload = 'file_upload'
+  file_upload = 'file_upload',
 }
 
 export enum DifficultyLevel {
   easy = 'easy',
   medium = 'medium',
-  hard = 'hard'
+  hard = 'hard',
 }
 
 export enum ExamQuestionType {
   MULTIPLE_CHOICE = 'multiple_choice',
   ENUMERATION = 'enumeration',
   IDENTIFICATION = 'identification',
-  TRUE_FALSE = 'true_false'
+  TRUE_FALSE = 'true_false',
 }
 
 export class CreateAssignmentQuestionDto {
@@ -47,13 +61,19 @@ export class CreateAssignmentQuestionDto {
   @IsString()
   correct_answer?: string;
 
-  @ApiPropertyOptional({ description: 'Correct answers for multiple answer questions', type: [String] })
+  @ApiPropertyOptional({
+    description: 'Correct answers for multiple answer questions',
+    type: [String],
+  })
   @IsOptional()
   @IsArray()
   @IsString({ each: true })
   correct_answers?: string[];
 
-  @ApiPropertyOptional({ description: 'Answer options for multiple choice questions', type: [String] })
+  @ApiPropertyOptional({
+    description: 'Answer options for multiple choice questions',
+    type: [String],
+  })
   @IsOptional()
   @IsArray()
   @IsString({ each: true })
@@ -88,11 +108,17 @@ export class CreateAssignmentDto {
   @IsString()
   description?: string;
 
-  @ApiProperty({ enum: AssignmentType, description: 'Type of assignment (assignment, activity, exam)' })
+  @ApiProperty({
+    enum: AssignmentType,
+    description: 'Type of assignment (assignment, activity, exam)',
+  })
   @IsEnum(AssignmentType)
   assignmentType: AssignmentType;
 
-  @ApiProperty({ enum: AssignmentSubtype, description: 'Subtype of assignment (code_sandbox, quiz_form, file_upload)' })
+  @ApiProperty({
+    enum: AssignmentSubtype,
+    description: 'Subtype of assignment (code_sandbox, quiz_form, file_upload)',
+  })
   @IsEnum(AssignmentSubtype)
   assignmentSubtype: AssignmentSubtype;
 
@@ -111,12 +137,17 @@ export class CreateAssignmentDto {
   @IsDateString()
   dueDate?: string;
 
-  @ApiPropertyOptional({ description: 'Whether to use secured browser (auto-enabled for quiz and exam)' })
+  @ApiPropertyOptional({
+    description: 'Whether to use secured browser (auto-enabled for quiz and exam)',
+  })
   @IsOptional()
   @IsBoolean()
   secured_browser?: boolean;
 
-  @ApiPropertyOptional({ description: 'Questions for quiz form assignments', type: [CreateAssignmentQuestionDto] })
+  @ApiPropertyOptional({
+    description: 'Questions for quiz form assignments',
+    type: [CreateAssignmentQuestionDto],
+  })
   @IsOptional()
   @IsArray()
   @ValidateNested({ each: true })
@@ -127,7 +158,6 @@ export class CreateAssignmentDto {
   @IsOptional()
   @IsString()
   starterCode?: string;
-
 
   @ApiPropertyOptional({ description: 'Attachment file for file upload assignments' })
   @IsOptional()
@@ -149,12 +179,18 @@ export class UpdateAssignmentDto {
   @IsString()
   description?: string;
 
-  @ApiPropertyOptional({ enum: AssignmentType, description: 'Type of assignment (assignment, activity, exam)' })
+  @ApiPropertyOptional({
+    enum: AssignmentType,
+    description: 'Type of assignment (assignment, activity, exam)',
+  })
   @IsOptional()
   @IsEnum(AssignmentType)
   assignmentType?: AssignmentType;
 
-  @ApiPropertyOptional({ enum: AssignmentSubtype, description: 'Subtype of assignment (code_sandbox, quiz_form, file_upload)' })
+  @ApiPropertyOptional({
+    enum: AssignmentSubtype,
+    description: 'Subtype of assignment (code_sandbox, quiz_form, file_upload)',
+  })
   @IsOptional()
   @IsEnum(AssignmentSubtype)
   assignmentSubtype?: AssignmentSubtype;
@@ -185,7 +221,10 @@ export class UpdateAssignmentDto {
   @IsBoolean()
   secured_browser?: boolean;
 
-  @ApiPropertyOptional({ description: 'Questions for quiz form assignments', type: [CreateAssignmentQuestionDto] })
+  @ApiPropertyOptional({
+    description: 'Questions for quiz form assignments',
+    type: [CreateAssignmentQuestionDto],
+  })
   @IsOptional()
   @IsArray()
   @ValidateNested({ each: true })
@@ -196,7 +235,6 @@ export class UpdateAssignmentDto {
   @IsOptional()
   @IsString()
   starterCode?: string;
-
 
   @IsValidAssignmentSubtype()
   private _subtypeValidation?: any; // This field is used for validation only
@@ -212,10 +250,16 @@ export class AssignmentResponseDto {
   @ApiPropertyOptional({ description: 'Assignment description' })
   description?: string;
 
-  @ApiProperty({ enum: AssignmentType, description: 'Type of assignment (assignment, activity, exam)' })
+  @ApiProperty({
+    enum: AssignmentType,
+    description: 'Type of assignment (assignment, activity, exam)',
+  })
   assignmentType: AssignmentType;
 
-  @ApiProperty({ enum: AssignmentSubtype, description: 'Subtype of assignment (code_sandbox, quiz_form, file_upload)' })
+  @ApiProperty({
+    enum: AssignmentSubtype,
+    description: 'Subtype of assignment (code_sandbox, quiz_form, file_upload)',
+  })
   assignmentSubtype: AssignmentSubtype;
 
   @ApiProperty({ enum: DifficultyLevel, description: 'Difficulty level of the assignment' })
@@ -253,7 +297,6 @@ export class AssignmentResponseDto {
 
   @ApiProperty({ description: 'Whether the assignment is already submitted' })
   already_submitted: boolean;
-
 }
 
 export class AssignmentQueryDto {
@@ -361,6 +404,24 @@ export class AssignmentSubmissionDto {
   files?: any[];
 }
 
+export class CodeSubmissionDto {
+  @ApiProperty({
+    description: 'Submitted code for code_sandbox assignments',
+    example:
+      'console.log("Hello, World!");\n\nfunction fibonacci(n) {\n  if (n <= 1) return n;\n  return fibonacci(n - 1) + fibonacci(n - 2);\n}\n\nconsole.log("Fibonacci(10):", fibonacci(10));',
+  })
+  @IsString()
+  code: string;
+
+  @ApiProperty({
+    description: 'Programming language used',
+    example: 'javascript',
+    enum: ['javascript', 'python', 'java', 'cpp', 'csharp', 'typescript', 'other'],
+  })
+  @IsString()
+  language: string;
+}
+
 export class AssignmentSubmissionResponseDto {
   @ApiProperty({ description: 'Submission ID' })
   id: string;
@@ -388,6 +449,12 @@ export class AssignmentSubmissionResponseDto {
 
   @ApiPropertyOptional({ description: 'Submitted files', type: [Object] })
   files?: any[];
+
+  @ApiPropertyOptional({ description: 'Submitted code for code_sandbox assignments' })
+  submitted_code?: string;
+
+  @ApiPropertyOptional({ description: 'Programming language used for code submission' })
+  code_language?: string;
 
   @ApiPropertyOptional({ description: 'Student information' })
   student?: {

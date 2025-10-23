@@ -384,6 +384,8 @@ model AssignmentSubmission {
   student_id   String           @db.Uuid
   score        Int              @default(0)
   max_score    Int
+  submitted_code String?
+  code_language String?
   submitted_at DateTime         @default(now())
   status       SubmissionStatus @default(submitted)
   answers      AssignmentAnswer[] @relation("AssignmentSubmissionAnswers")

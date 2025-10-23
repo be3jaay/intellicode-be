@@ -16,6 +16,7 @@ import {
   PaginatedAssignmentsResponseDto,
   AssignmentSubmissionDto,
   AssignmentSubmissionResponseDto,
+  CodeSubmissionDto,
   StudentScoreDto,
   ManualGradingDto,
   AssignmentGradingResponseDto,
@@ -858,7 +859,9 @@ export class AssignmentService {
 
     // Validate that files are provided
     if (!files || files.length === 0) {
-      throw new BadRequestException('At least one file must be uploaded for file_upload assignments');
+      throw new BadRequestException(
+        'At least one file must be uploaded for file_upload assignments',
+      );
     }
 
     // Check if assignment exists and is published
@@ -895,7 +898,9 @@ export class AssignmentService {
 
     // Verify assignment is file_upload type
     if (assignment.assignment_subtype !== 'file_upload') {
-      throw new BadRequestException('This endpoint is only for file_upload assignments. Use the standard submit endpoint for other types.');
+      throw new BadRequestException(
+        'This endpoint is only for file_upload assignments. Use the standard submit endpoint for other types.',
+      );
     }
 
     // Check if student already submitted
@@ -972,6 +977,104 @@ export class AssignmentService {
     });
 
     return this.formatSubmissionResponse(updatedSubmission);
+  }
+
+  async submitCodeAssignment(
+    assignmentId: string,
+    code: string,
+    language: string,
+    studentId: string,
+  ): Promise<AssignmentSubmissionResponseDto> {
+    UuidValidator.validate(assignmentId, 'assignment ID');
+
+    // Validate that code is provided
+    if (!code || code.trim().length === 0) {
+      throw new BadRequestException('Code cannot be empty');
+    }
+
+    // Validate that language is provided
+    if (!language || language.trim().length === 0) {
+      throw new BadRequestException('Programming language must be specified');
+    }
+
+    // Check if assignment exists and is published
+    const assignment = await this.prisma.assignment.findFirst({
+      where: {
+        id: assignmentId,
+        is_published: true,
+      },
+      include: {
+        module: {
+          include: {
+            course: {
+              include: {
+                enrollments: {
+                  where: {
+                    student_id: studentId,
+                    status: 'active',
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
+    });
+
+    if (!assignment) {
+      throw new NotFoundException('Assignment not found or not published');
+    }
+
+    if (assignment.module.course.enrollments.length === 0) {
+      throw new ForbiddenException('You are not enrolled in this course');
+    }
+
+    // Verify assignment is code_sandbox type
+    if (assignment.assignment_subtype !== 'code_sandbox') {
+      throw new BadRequestException(
+        'This endpoint is only for code_sandbox assignments. Use the appropriate submit endpoint for other types.',
+      );
+    }
+
+    // Check if student already submitted
+    const existingSubmission = await this.prisma.assignmentSubmission.findFirst({
+      where: {
+        assignment_id: assignmentId,
+        student_id: studentId,
+      },
+    });
+
+    if (existingSubmission) {
+      throw new BadRequestException('You have already submitted this assignment');
+    }
+
+    // For code sandbox assignments, max_score is the assignment's points
+    const maxScore = assignment.points || 0;
+
+    // Create submission with code
+    const submission = await this.prisma.assignmentSubmission.create({
+      data: {
+        id: uuidv4(),
+        assignment_id: assignmentId,
+        student_id: studentId,
+        submitted_code: code,
+        code_language: language,
+        max_score: maxScore,
+        score: 0, // Code submissions require manual grading
+        status: 'submitted',
+      },
+    });
+
+    // Fetch the submission to return
+    const createdSubmission = await this.prisma.assignmentSubmission.findUnique({
+      where: { id: submission.id },
+      include: {
+        answers: true,
+        files: true,
+      },
+    });
+
+    return this.formatSubmissionResponse(createdSubmission);
   }
 
   async getStudentSubmissions(
@@ -1264,6 +1367,8 @@ export class AssignmentService {
       status: submission.status,
       answers: submission.answers,
       files: submission.files,
+      submitted_code: submission.submitted_code,
+      code_language: submission.code_language,
     };
   }
 

@@ -97,6 +97,7 @@ import {
   PaginatedAssignmentsResponseDto,
   AssignmentSubmissionDto,
   AssignmentSubmissionResponseDto,
+  CodeSubmissionDto,
   StudentScoreDto,
   ManualGradingDto,
   AssignmentGradingResponseDto,
@@ -1051,9 +1052,10 @@ export class CourseController {
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles('student')
   @ApiBearerAuth('JWT-auth')
-  @ApiOperation({ 
+  @ApiOperation({
     summary: 'Submit assignment with file uploads (for file_upload assignments only)',
-    description: 'Upload files directly for file_upload type assignments. Supports up to 10 files per submission.'
+    description:
+      'Upload files directly for file_upload type assignments. Supports up to 10 files per submission.',
   })
   @ApiConsumes('multipart/form-data')
   @ApiBody({
@@ -1093,9 +1095,42 @@ export class CourseController {
     @UploadedFiles() files: Express.Multer.File[],
     @CurrentUser() user: RequestUser,
   ) {
-    return await this.assignmentService.submitAssignmentWithFiles(
+    return await this.assignmentService.submitAssignmentWithFiles(assignmentId, files, user.id);
+  }
+
+  @Post('assignments/:assignmentId/submit-code')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('student')
+  @ApiBearerAuth('JWT-auth')
+  @ApiOperation({
+    summary: 'Submit code for code_sandbox assignments',
+    description:
+      'Submit code directly for code_sandbox type assignments. The code will be stored and require manual grading by the instructor.',
+  })
+  @ApiParam({ name: 'assignmentId', description: 'Assignment ID' })
+  @ApiResponse({
+    status: HttpStatus.CREATED,
+    description: 'Code assignment submitted successfully',
+    type: AssignmentSubmissionResponseDto,
+  })
+  @ApiResponse({
+    status: HttpStatus.NOT_FOUND,
+    description: 'Assignment not found or not published',
+  })
+  @ApiResponse({
+    status: HttpStatus.BAD_REQUEST,
+    description: 'Already submitted, code is empty, or wrong assignment type',
+  })
+  @HttpCode(HttpStatus.CREATED)
+  async submitCodeAssignment(
+    @Param('assignmentId') assignmentId: string,
+    @Body() codeSubmissionDto: CodeSubmissionDto,
+    @CurrentUser() user: RequestUser,
+  ) {
+    return await this.assignmentService.submitCodeAssignment(
       assignmentId,
-      files,
+      codeSubmissionDto.code,
+      codeSubmissionDto.language,
       user.id,
     );
   }
@@ -1489,7 +1524,10 @@ export class CourseController {
     description: 'Passing grade updated successfully',
   })
   @ApiResponse({ status: HttpStatus.NOT_FOUND, description: 'Course not found' })
-  @ApiResponse({ status: HttpStatus.FORBIDDEN, description: 'Not authorized to update this course' })
+  @ApiResponse({
+    status: HttpStatus.FORBIDDEN,
+    description: 'Not authorized to update this course',
+  })
   async setPassingGrade(
     @Param('courseId') courseId: string,
     @Body() setPassingGradeDto: SetPassingGradeDto,
@@ -1532,7 +1570,10 @@ export class CourseController {
     description: 'Certificate issued successfully',
     type: CertificateDto,
   })
-  @ApiResponse({ status: HttpStatus.BAD_REQUEST, description: 'Student not eligible or certificate already exists' })
+  @ApiResponse({
+    status: HttpStatus.BAD_REQUEST,
+    description: 'Student not eligible or certificate already exists',
+  })
   @ApiResponse({ status: HttpStatus.NOT_FOUND, description: 'Course not found' })
   async issueCertificate(
     @Param('courseId') courseId: string,
@@ -1554,14 +1595,21 @@ export class CourseController {
     description: 'Certificate revoked successfully',
     type: CertificateDto,
   })
-  @ApiResponse({ status: HttpStatus.BAD_REQUEST, description: 'Certificate already revoked or invalid request' })
+  @ApiResponse({
+    status: HttpStatus.BAD_REQUEST,
+    description: 'Certificate already revoked or invalid request',
+  })
   @ApiResponse({ status: HttpStatus.NOT_FOUND, description: 'Certificate not found' })
   async revokeCertificate(
     @Param('certificateId') certificateId: string,
     @Body() revokeCertificateDto: RevokeCertificateDto,
     @CurrentUser() user: RequestUser,
   ) {
-    return await this.certificateService.revokeCertificate(certificateId, user.id, revokeCertificateDto);
+    return await this.certificateService.revokeCertificate(
+      certificateId,
+      user.id,
+      revokeCertificateDto,
+    );
   }
 
   @Get(':courseId/certificates/:studentId')
@@ -1582,7 +1630,12 @@ export class CourseController {
     @Param('studentId') studentId: string,
     @CurrentUser() user: RequestUser,
   ) {
-    return await this.certificateService.getStudentCertificate(courseId, studentId, user.id, user.role);
+    return await this.certificateService.getStudentCertificate(
+      courseId,
+      studentId,
+      user.id,
+      user.role,
+    );
   }
 
   @Get(':courseId/my-certificate')
@@ -1598,6 +1651,11 @@ export class CourseController {
   })
   @ApiResponse({ status: HttpStatus.NOT_FOUND, description: 'Certificate not found' })
   async getMyCertificate(@Param('courseId') courseId: string, @CurrentUser() user: RequestUser) {
-    return await this.certificateService.getStudentCertificate(courseId, user.id, user.id, user.role);
+    return await this.certificateService.getStudentCertificate(
+      courseId,
+      user.id,
+      user.id,
+      user.role,
+    );
   }
 }
