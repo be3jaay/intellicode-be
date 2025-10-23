@@ -1110,6 +1110,7 @@ export class AssignmentService {
             last_name: true,
             email: true,
             student_number: true,
+            profile_picture: true,
           },
         },
         files: true,
@@ -1133,6 +1134,7 @@ export class AssignmentService {
         last_name: submission.student.last_name,
         email: submission.student.email,
         student_number: submission.student.student_number,
+        profile_picture: submission.student.profile_picture,
       },
     }));
   }
