@@ -1231,6 +1231,12 @@ export class AssignmentService {
       submitted_at: submission.submitted_at,
       graded_at: new Date(),
       files: submission.files,
+      submitted_code: submission.submitted_code,
+      code_language: submission.code_language,
+      assignment_title: assignment.title,
+      assignment_description: assignment.description,
+      assignment_difficulty: assignment.difficulty,
+      assignment_due_date: assignment.due_date,
       student: {
         id: submission.student.id,
         first_name: submission.student.first_name,
@@ -1261,6 +1267,14 @@ export class AssignmentService {
         },
       },
       include: {
+        assignment: {
+          select: {
+            title: true,
+            description: true,
+            difficulty: true,
+            due_date: true,
+          },
+        },
         student: {
           select: {
             id: true,
@@ -1309,6 +1323,12 @@ export class AssignmentService {
       submitted_at: updatedSubmission.submitted_at,
       graded_at: new Date(),
       files: updatedSubmission.files,
+      submitted_code: updatedSubmission.submitted_code,
+      code_language: updatedSubmission.code_language,
+      assignment_title: submission.assignment.title,
+      assignment_description: submission.assignment.description,
+      assignment_difficulty: submission.assignment.difficulty,
+      assignment_due_date: submission.assignment.due_date,
       student: {
         id: updatedSubmission.student.id,
         first_name: updatedSubmission.student.first_name,

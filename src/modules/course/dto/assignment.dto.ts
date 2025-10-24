@@ -556,6 +556,24 @@ export class AssignmentGradingResponseDto {
   @ApiPropertyOptional({ description: 'Submitted files', type: [Object] })
   files?: any[];
 
+  @ApiPropertyOptional({ description: 'Submitted code for code_sandbox assignments' })
+  submitted_code?: string;
+
+  @ApiPropertyOptional({ description: 'Programming language used for code submission' })
+  code_language?: string;
+
+  @ApiProperty({ description: 'Assignment title' })
+  assignment_title: string;
+
+  @ApiPropertyOptional({ description: 'Assignment description' })
+  assignment_description?: string;
+
+  @ApiProperty({ description: 'Assignment difficulty level' })
+  assignment_difficulty: string;
+
+  @ApiPropertyOptional({ description: 'Assignment due date' })
+  assignment_due_date?: Date;
+
   @ApiProperty({ description: 'Student information' })
   student: {
     id: string;
