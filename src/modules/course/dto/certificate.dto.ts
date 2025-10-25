@@ -2,11 +2,11 @@ import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { IsString, IsNotEmpty, IsOptional, IsNumber, Min, Max } from 'class-validator';
 
 export class SetPassingGradeDto {
-  @ApiProperty({ 
+  @ApiProperty({
     description: 'Minimum overall grade required for certificate (0-100)',
     minimum: 0,
     maximum: 100,
-    example: 75.0
+    example: 75.0,
   })
   @IsNumber()
   @Min(0)
@@ -116,4 +116,51 @@ export class CertificateEligibilityDto {
   existing_certificate?: CertificateDto;
 }
 
+export class EligibleStudentDto {
+  @ApiProperty({ description: 'Student ID' })
+  student_id: string;
 
+  @ApiProperty({ description: 'Student first name' })
+  first_name: string;
+
+  @ApiProperty({ description: 'Student last name' })
+  last_name: string;
+
+  @ApiProperty({ description: 'Student email' })
+  email: string;
+
+  @ApiPropertyOptional({ description: 'Student number' })
+  student_number?: string;
+
+  @ApiProperty({ description: 'Student overall grade' })
+  overall_grade: number;
+
+  @ApiProperty({ description: 'Course completion percentage' })
+  course_progress: number;
+
+  @ApiProperty({ description: 'Whether student already has a certificate' })
+  has_certificate: boolean;
+
+  @ApiPropertyOptional({ description: 'Certificate ID if already issued' })
+  certificate_id?: string;
+
+  @ApiPropertyOptional({ description: 'Certificate issue date if already issued' })
+  certificate_issued_at?: Date;
+}
+
+export class EligibleStudentsResponseDto {
+  @ApiProperty({ description: 'List of eligible students', type: [EligibleStudentDto] })
+  eligible_students: EligibleStudentDto[];
+
+  @ApiProperty({ description: 'Total number of eligible students' })
+  total_eligible: number;
+
+  @ApiProperty({ description: 'Total number of enrolled students' })
+  total_enrolled: number;
+
+  @ApiProperty({ description: 'Course passing grade requirement' })
+  passing_grade: number | null;
+
+  @ApiProperty({ description: 'Whether passing grade is configured' })
+  has_passing_grade: boolean;
+}

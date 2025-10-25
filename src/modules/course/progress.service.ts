@@ -7,16 +7,11 @@ import { v4 as uuidv4 } from 'uuid';
 export class ProgressService {
   constructor(private readonly prisma: PrismaService) {}
 
-  async updateLessonProgress(
-    studentId: string,
-    lessonId: string,
-    completionPercentage: number,
-    isCompleted: boolean = false
-  ) {
+  async completeLesson(studentId: string, lessonId: string) {
     // Validate UUID formats
     UuidValidator.validateMultiple({
       'student ID': studentId,
-      'lesson ID': lessonId
+      'lesson ID': lessonId,
     });
 
     // Check if lesson exists and student is enrolled in the course
@@ -28,19 +23,139 @@ export class ProgressService {
             enrollments: {
               some: {
                 student_id: studentId,
-                status: 'active'
-              }
-            }
-          }
-        }
+                status: 'active',
+              },
+            },
+          },
+        },
       },
       include: {
         module: {
           include: {
-            course: true
-          }
+            course: true,
+            lessons: {
+              where: { is_published: true },
+              orderBy: { order_index: 'asc' },
+            },
+          },
+        },
+      },
+    });
+
+    if (!lesson) {
+      throw new NotFoundException('Lesson not found or you are not enrolled in this course');
+    }
+
+    // Check if the lesson can be unlocked (previous lesson is completed)
+    if (lesson.order_index > 1) {
+      const previousLesson = lesson.module.lessons.find(
+        (l) => l.order_index === lesson.order_index - 1,
+      );
+
+      if (previousLesson) {
+        const previousProgress = await this.prisma.lessonProgress.findUnique({
+          where: {
+            student_id_lesson_id: {
+              student_id: studentId,
+              lesson_id: previousLesson.id,
+            },
+          },
+        });
+
+        if (!previousProgress?.is_completed) {
+          throw new NotFoundException('Previous lesson must be completed first');
         }
       }
+    }
+
+    // Check if progress record exists
+    const existingProgress = await this.prisma.lessonProgress.findUnique({
+      where: {
+        student_id_lesson_id: {
+          student_id: studentId,
+          lesson_id: lessonId,
+        },
+      },
+    });
+
+    const progressData = {
+      student_id: studentId,
+      lesson_id: lessonId,
+      completion_percentage: 100,
+      is_completed: true,
+      last_accessed: new Date(),
+      completed_at: new Date(),
+    };
+
+    let updatedProgress;
+    if (existingProgress) {
+      // Update existing progress
+      updatedProgress = await this.prisma.lessonProgress.update({
+        where: {
+          student_id_lesson_id: {
+            student_id: studentId,
+            lesson_id: lessonId,
+          },
+        },
+        data: progressData,
+      });
+    } else {
+      // Create new progress record
+      updatedProgress = await this.prisma.lessonProgress.create({
+        data: {
+          id: uuidv4(),
+          ...progressData,
+        },
+      });
+    }
+
+    // Get the next lesson to check if it should be unlocked
+    const nextLesson = lesson.module.lessons.find((l) => l.order_index === lesson.order_index + 1);
+
+    return {
+      message: 'Lesson completed successfully',
+      lesson_id: lessonId,
+      is_completed: true,
+      completion_percentage: 100,
+      next_lesson_id: nextLesson?.id,
+      next_lesson_unlocked: !!nextLesson,
+    };
+  }
+
+  async updateLessonProgress(
+    studentId: string,
+    lessonId: string,
+    completionPercentage: number,
+    isCompleted: boolean = false,
+  ) {
+    // Validate UUID formats
+    UuidValidator.validateMultiple({
+      'student ID': studentId,
+      'lesson ID': lessonId,
+    });
+
+    // Check if lesson exists and student is enrolled in the course
+    const lesson = await this.prisma.lesson.findFirst({
+      where: {
+        id: lessonId,
+        module: {
+          course: {
+            enrollments: {
+              some: {
+                student_id: studentId,
+                status: 'active',
+              },
+            },
+          },
+        },
+      },
+      include: {
+        module: {
+          include: {
+            course: true,
+          },
+        },
+      },
     });
 
     if (!lesson) {
@@ -52,9 +167,9 @@ export class ProgressService {
       where: {
         student_id_lesson_id: {
           student_id: studentId,
-          lesson_id: lessonId
-        }
-      }
+          lesson_id: lessonId,
+        },
+      },
     });
 
     const progressData = {
@@ -63,7 +178,7 @@ export class ProgressService {
       completion_percentage: Math.min(100, Math.max(0, completionPercentage)),
       is_completed: isCompleted || completionPercentage >= 100,
       last_accessed: new Date(),
-      completed_at: (isCompleted || completionPercentage >= 100) ? new Date() : null
+      completed_at: isCompleted || completionPercentage >= 100 ? new Date() : null,
     };
 
     if (existingProgress) {
@@ -72,18 +187,18 @@ export class ProgressService {
         where: {
           student_id_lesson_id: {
             student_id: studentId,
-            lesson_id: lessonId
-          }
+            lesson_id: lessonId,
+          },
         },
-        data: progressData
+        data: progressData,
       });
     } else {
       // Create new progress record
       return await this.prisma.lessonProgress.create({
         data: {
           id: uuidv4(),
-          ...progressData
-        }
+          ...progressData,
+        },
       });
     }
   }
@@ -92,7 +207,7 @@ export class ProgressService {
     // Validate UUID formats
     UuidValidator.validateMultiple({
       'student ID': studentId,
-      'course ID': courseId
+      'course ID': courseId,
     });
 
     // Check if student is enrolled in the course
@@ -100,8 +215,8 @@ export class ProgressService {
       where: {
         student_id: studentId,
         course_id: courseId,
-        status: 'active'
-      }
+        status: 'active',
+      },
     });
 
     if (!enrollment) {
@@ -117,8 +232,8 @@ export class ProgressService {
             id: true,
             first_name: true,
             last_name: true,
-            email: true
-          }
+            email: true,
+          },
         },
         modules: {
           where: { is_published: true },
@@ -126,15 +241,15 @@ export class ProgressService {
           include: {
             lessons: {
               where: { is_published: true },
-              orderBy: { order_index: 'asc' }
+              orderBy: { order_index: 'asc' },
             },
             assignments: {
               where: { is_published: true },
-              orderBy: { created_at: 'asc' }
-            }
-          }
-        }
-      }
+              orderBy: { created_at: 'asc' },
+            },
+          },
+        },
+      },
     });
 
     if (!course) {
@@ -147,10 +262,10 @@ export class ProgressService {
         student_id: studentId,
         lesson: {
           module: {
-            course_id: courseId
-          }
-        }
-      }
+            course_id: courseId,
+          },
+        },
+      },
     });
 
     // Get student's assignment submissions
@@ -159,20 +274,20 @@ export class ProgressService {
         student_id: studentId,
         assignment: {
           module: {
-            course_id: courseId
-          }
-        }
-      }
+            course_id: courseId,
+          },
+        },
+      },
     });
 
     // Create progress map for quick lookup
     const progressMap = new Map();
-    lessonProgress.forEach(progress => {
+    lessonProgress.forEach((progress) => {
       progressMap.set(progress.lesson_id, progress);
     });
 
     const submissionMap = new Map();
-    assignmentSubmissions.forEach(submission => {
+    assignmentSubmissions.forEach((submission) => {
       submissionMap.set(submission.assignment_id, submission);
     });
 
@@ -183,8 +298,8 @@ export class ProgressService {
     let completedModules = 0;
     let totalEstimatedDuration = 0;
 
-    const modulesWithProgress = course.modules.map(module => {
-      const moduleLessons = module.lessons.map(lesson => {
+    const modulesWithProgress = course.modules.map((module) => {
+      const moduleLessons = module.lessons.map((lesson) => {
         const progress = progressMap.get(lesson.id);
         const isCompleted = progress?.is_completed || false;
         const completionPercentage = progress?.completion_percentage || 0;
@@ -207,17 +322,19 @@ export class ProgressService {
           is_unlocked: isUnlocked,
           completion_percentage: completionPercentage,
           last_accessed: progress?.last_accessed,
-          completed_at: progress?.completed_at
+          completed_at: progress?.completed_at,
         };
       });
 
-      const moduleCompletedLessons = moduleLessons.filter(lesson => lesson.is_completed).length;
-      const moduleCompletionPercentage = moduleLessons.length > 0 
-        ? Math.round((moduleCompletedLessons / moduleLessons.length) * 100) 
-        : 0;
+      const moduleCompletedLessons = moduleLessons.filter((lesson) => lesson.is_completed).length;
+      const moduleCompletionPercentage =
+        moduleLessons.length > 0
+          ? Math.round((moduleCompletedLessons / moduleLessons.length) * 100)
+          : 0;
 
-      const moduleTotalDuration = moduleLessons.reduce((sum, lesson) => 
-        sum + (lesson.estimated_duration || 0), 0
+      const moduleTotalDuration = moduleLessons.reduce(
+        (sum, lesson) => sum + (lesson.estimated_duration || 0),
+        0,
       );
 
       totalEstimatedDuration += moduleTotalDuration;
@@ -235,13 +352,13 @@ export class ProgressService {
         total_lessons: moduleLessons.length,
         completed_lessons: moduleCompletedLessons,
         completion_percentage: moduleCompletionPercentage,
-        total_duration: moduleTotalDuration
+        total_duration: moduleTotalDuration,
       };
     });
 
     // Process assignments
-    const assignmentsWithProgress = course.modules.flatMap(module => 
-      module.assignments.map(assignment => {
+    const assignmentsWithProgress = course.modules.flatMap((module) =>
+      module.assignments.map((assignment) => {
         const submission = submissionMap.get(assignment.id);
         return {
           id: assignment.id,
@@ -255,14 +372,13 @@ export class ProgressService {
           is_published: assignment.is_published,
           is_submitted: !!submission,
           score: submission?.score,
-          submitted_at: submission?.submitted_at
+          submitted_at: submission?.submitted_at,
         };
-      })
+      }),
     );
 
-    const courseCompletionPercentage = totalLessons > 0 
-      ? Math.round((completedLessons / totalLessons) * 100) 
-      : 0;
+    const courseCompletionPercentage =
+      totalLessons > 0 ? Math.round((completedLessons / totalLessons) * 100) : 0;
 
     return {
       id: course.id,
@@ -283,7 +399,7 @@ export class ProgressService {
       enrolled_at: enrollment.enrolled_at,
       last_accessed: enrollment.enrolled_at, // You might want to track this separately
       created_at: course.created_at,
-      updated_at: course.updated_at
+      updated_at: course.updated_at,
     };
   }
 
@@ -292,8 +408,8 @@ export class ProgressService {
     if (lesson.order_index === 1) return true;
 
     // Find the previous lesson
-    const previousLesson = allLessons.find(l => l.order_index === lesson.order_index - 1);
-    
+    const previousLesson = allLessons.find((l) => l.order_index === lesson.order_index - 1);
+
     if (!previousLesson) return true;
 
     // Check if previous lesson is completed

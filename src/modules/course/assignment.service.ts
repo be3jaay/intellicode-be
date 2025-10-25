@@ -62,7 +62,7 @@ export class AssignmentService {
     }
 
     // Auto-enable secured browser for quiz and exam types
-    const securedBrowser =
+    const secured_browser =
       assignmentData.secured_browser ||
       assignmentData.assignmentType === AssignmentType.activity ||
       assignmentData.assignmentType === AssignmentType.exam;
@@ -82,8 +82,8 @@ export class AssignmentService {
         difficulty: processedData.difficulty,
         points: processedData.points,
         due_date: processedData.dueDate ? new Date(processedData.dueDate) : null,
-        is_published: false,
-        secured_browser: securedBrowser,
+        is_published: true,
+        secured_browser: secured_browser,
         starter_code: processedData.starterCode,
         questions: processedData.questions
           ? {
@@ -184,7 +184,7 @@ export class AssignmentService {
     }
 
     // Auto-enable secured browser for quiz and exam types
-    const securedBrowser =
+    const secured_browser =
       assignmentData.secured_browser ||
       assignmentData.assignmentType === AssignmentType.activity ||
       assignmentData.assignmentType === AssignmentType.exam;
@@ -204,8 +204,8 @@ export class AssignmentService {
         difficulty: processedData.difficulty,
         points: processedData.points,
         due_date: processedData.dueDate ? new Date(processedData.dueDate) : null,
-        is_published: false,
-        secured_browser: securedBrowser,
+        is_published: true,
+        secured_browser: secured_browser,
         starter_code: processedData.starterCode,
         questions: processedData.questions
           ? {
@@ -475,7 +475,7 @@ export class AssignmentService {
     const { questions, ...assignmentData } = updateAssignmentDto;
 
     // Auto-enable secured browser for quiz and exam types if not explicitly set
-    const securedBrowser =
+    const secured_browser =
       assignmentData.secured_browser !== undefined
         ? assignmentData.secured_browser
         : assignmentData.assignmentType === AssignmentType.activity ||
@@ -488,36 +488,47 @@ export class AssignmentService {
     const wasUnpublished = !existingAssignment.is_published;
     const isBeingPublished = processedData.is_published === true;
 
-    // Update assignment
+    // Update assignment - only include fields that are defined
+    const updateData: any = {};
+
+    if (processedData.title !== undefined) updateData.title = processedData.title;
+    if (processedData.description !== undefined) updateData.description = processedData.description;
+    if (processedData.assignmentType !== undefined)
+      updateData.assignment_type = processedData.assignmentType;
+    if (processedData.assignmentSubtype !== undefined)
+      updateData.assignment_subtype = processedData.assignmentSubtype;
+    if (processedData.difficulty !== undefined) updateData.difficulty = processedData.difficulty;
+    if (processedData.points !== undefined) updateData.points = processedData.points;
+    if (processedData.dueDate !== undefined)
+      updateData.due_date = processedData.dueDate ? new Date(processedData.dueDate) : null;
+    if (processedData.is_published !== undefined)
+      updateData.is_published = processedData.is_published;
+    if (secured_browser !== undefined) updateData.secured_browser = secured_browser;
+    if (processedData.starterCode !== undefined)
+      updateData.starter_code = processedData.starterCode;
+
+    if (processedData.questions) {
+      updateData.questions = {
+        deleteMany: {},
+        create: processedData.questions.map((question, index) => ({
+          id: uuidv4(),
+          question_text: question.question,
+          question_type: question.type,
+          points: question.points,
+          order_index: index + 1,
+          correct_answer: question.correct_answer,
+          correct_answers: question.correct_answers || [],
+          options: question.options || [],
+          explanation: question.explanation,
+          case_sensitive: question.case_sensitive || false,
+          is_true: question.is_true,
+        })),
+      };
+    }
+
     const assignment = await this.prisma.assignment.update({
       where: { id: assignmentId },
-      data: {
-        ...processedData,
-        due_date: processedData.dueDate ? new Date(processedData.dueDate) : undefined,
-        assignment_type: processedData.assignmentType,
-        assignment_subtype: processedData.assignmentSubtype,
-        difficulty: processedData.difficulty,
-        secured_browser: securedBrowser,
-        starter_code: processedData.starterCode,
-        questions: processedData.questions
-          ? {
-              deleteMany: {},
-              create: processedData.questions.map((question, index) => ({
-                id: uuidv4(),
-                question_text: question.question,
-                question_type: question.type,
-                points: question.points,
-                order_index: index + 1,
-                correct_answer: question.correct_answer,
-                correct_answers: question.correct_answers || [],
-                options: question.options || [],
-                explanation: question.explanation,
-                case_sensitive: question.case_sensitive || false,
-                is_true: question.is_true,
-              })),
-            }
-          : undefined,
-      },
+      data: updateData,
       include: {
         questions: {
           orderBy: { order_index: 'asc' },
@@ -674,14 +685,46 @@ export class AssignmentService {
         // Check correctness based on question type
         switch (question.question_type) {
           case 'multiple_choice':
-            // For multiple choice, compare with correct_answer
-            if (question.correct_answer) {
+            // For multiple choice, check correct_answers array first, then correct_answer
+            if (question.correct_answers && question.correct_answers.length > 0) {
+              // Split student answer by comma in case of multiple selections
+              const studentAnswers =
+                answer.answer_text
+                  ?.split(',')
+                  .map((ans) => ans.trim())
+                  .filter((ans) => ans.length > 0) || [];
+
+              // Normalize correct answers
+              const correctAnswersNormalized = question.correct_answers.map((ans) =>
+                question.case_sensitive ? ans.trim() : ans.trim().toLowerCase(),
+              );
+
+              // Normalize student answers
+              const studentAnswersNormalized = studentAnswers.map((ans) =>
+                question.case_sensitive ? ans : ans.toLowerCase(),
+              );
+
+              // Check if student answer matches (either single or multiple)
+              if (studentAnswersNormalized.length === 1) {
+                // Single answer - check if it's in correct answers
+                isCorrect = correctAnswersNormalized.includes(studentAnswersNormalized[0]);
+              } else if (studentAnswersNormalized.length > 1) {
+                // Multiple answers - check if all student answers are correct and match the expected count
+                const allCorrect = studentAnswersNormalized.every((ans) =>
+                  correctAnswersNormalized.includes(ans),
+                );
+                const correctCount =
+                  studentAnswersNormalized.length === correctAnswersNormalized.length;
+                isCorrect = allCorrect && correctCount;
+              }
+            } else if (question.correct_answer) {
+              // Fallback to single correct_answer
               const studentAnswer = question.case_sensitive
-                ? answer.answer_text
-                : answer.answer_text?.toLowerCase();
+                ? answer.answer_text?.trim()
+                : answer.answer_text?.trim().toLowerCase();
               const correctAnswer = question.case_sensitive
-                ? question.correct_answer
-                : question.correct_answer.toLowerCase();
+                ? question.correct_answer.trim()
+                : question.correct_answer.trim().toLowerCase();
               isCorrect = studentAnswer === correctAnswer;
             }
             break;
@@ -721,14 +764,23 @@ export class AssignmentService {
             break;
 
           case 'enumeration':
-            // For enumeration, split by newlines and check each answer
+            // For enumeration, split by newlines first, then try commas as fallback
             if (question.correct_answers && question.correct_answers.length > 0) {
-              // Split student's answer by newlines and trim each
-              const studentAnswers =
+              // Split student's answer by newlines first, if no newlines found, split by commas
+              let studentAnswers =
                 answer.answer_text
                   ?.split('\n')
                   .map((ans) => ans.trim())
                   .filter((ans) => ans.length > 0) || [];
+
+              // If no newlines found (only 1 item), try splitting by comma
+              if (studentAnswers.length === 1 && studentAnswers[0].includes(',')) {
+                studentAnswers =
+                  answer.answer_text
+                    ?.split(',')
+                    .map((ans) => ans.trim())
+                    .filter((ans) => ans.length > 0) || [];
+              }
 
               // Normalize correct answers
               const correctAnswersNormalized = question.correct_answers.map((ans) =>

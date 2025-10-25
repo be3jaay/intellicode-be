@@ -59,6 +59,7 @@ import {
 } from './dto/student.dto';
 import {
   CreateLessonDto,
+  UpdateLessonDto,
   BulkCreateLessonsDto,
   BulkCreateLessonsFromObjectDto,
   LessonResponseDto,
@@ -119,7 +120,18 @@ import {
   CertificateEligibilityDto,
   RevokeCertificateDto,
   SetPassingGradeDto,
+  EligibleStudentsResponseDto,
 } from './dto/certificate.dto';
+import { StudentAnalyticsService } from './student-analytics.service';
+import { StudentDashboardAnalyticsDto } from './dto/student-analytics.dto';
+import { AdminAnalyticsService } from './admin-analytics.service';
+import {
+  AdminDashboardAnalyticsDto,
+  SystemAnalyticsDto,
+  StudentPerformanceDto,
+  InstructorPerformanceDto,
+  AdminCourseProgressDto,
+} from './dto/admin-analytics.dto';
 
 @Controller('course')
 export class CourseController {
@@ -134,6 +146,8 @@ export class CourseController {
     private readonly progressService: ProgressService,
     private readonly gradebookService: GradebookService,
     private readonly certificateService: CertificateService,
+    private readonly studentAnalyticsService: StudentAnalyticsService,
+    private readonly adminAnalyticsService: AdminAnalyticsService,
   ) {}
 
   @Roles('teacher')
@@ -473,6 +487,43 @@ export class CourseController {
   @ApiResponse({ status: HttpStatus.OK, description: 'Lessons retrieved successfully' })
   async getModuleLessons(@Param('moduleId') moduleId: string, @CurrentUser() user: RequestUser) {
     return await this.lessonService.getModuleLessons(moduleId, user.id);
+  }
+
+  @Roles('teacher')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @ApiBearerAuth('JWT-auth')
+  @Patch('lessons/:lessonId')
+  @ApiOperation({ summary: 'Update a lesson by ID' })
+  @ApiParam({ name: 'lessonId', description: 'Lesson ID' })
+  @ApiResponse({
+    status: HttpStatus.OK,
+    description: 'Lesson updated successfully',
+    type: LessonResponseDto,
+  })
+  async updateLesson(
+    @Param('lessonId') lessonId: string,
+    @Body() updateLessonDto: UpdateLessonDto,
+    @CurrentUser() user: RequestUser,
+  ) {
+    return await this.lessonService.updateLesson(lessonId, updateLessonDto, user.id);
+  }
+
+  @Roles('teacher')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @ApiBearerAuth('JWT-auth')
+  @Delete('lessons/:lessonId')
+  @ApiOperation({ summary: 'Delete a lesson by ID' })
+  @ApiParam({ name: 'lessonId', description: 'Lesson ID' })
+  @ApiResponse({
+    status: HttpStatus.OK,
+    description: 'Lesson deleted successfully',
+  })
+  async deleteLesson(@Param('lessonId') lessonId: string, @CurrentUser() user: RequestUser) {
+    await this.lessonService.deleteLesson(lessonId, user.id);
+    return {
+      success: true,
+      message: 'Lesson deleted successfully',
+    };
   }
 
   // Admin endpoints
@@ -1375,6 +1426,53 @@ export class CourseController {
     );
   }
 
+  @Post(':courseId/lessons/:lessonId/complete')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('student')
+  @ApiBearerAuth('JWT-auth')
+  @ApiOperation({
+    summary: 'Mark lesson as completed and unlock next lesson',
+    description:
+      'Marks the current lesson as 100% complete, automatically updates course progress, and unlocks the next lesson in sequence.',
+  })
+  @ApiParam({ name: 'courseId', description: 'Course ID' })
+  @ApiParam({ name: 'lessonId', description: 'Lesson ID' })
+  @ApiResponse({
+    status: HttpStatus.OK,
+    description: 'Lesson marked as completed successfully',
+    schema: {
+      type: 'object',
+      properties: {
+        message: { type: 'string', example: 'Lesson completed successfully' },
+        lesson_id: { type: 'string', example: '9bc8e116-26a0-46a5-aadb-9fef8337aa74' },
+        is_completed: { type: 'boolean', example: true },
+        completion_percentage: { type: 'number', example: 100 },
+        next_lesson_id: {
+          type: 'string',
+          example: '0842fb41-676b-41ea-8dcc-e79940370d3b',
+          nullable: true,
+        },
+        next_lesson_unlocked: { type: 'boolean', example: true },
+      },
+    },
+  })
+  @ApiResponse({ status: HttpStatus.NOT_FOUND, description: 'Lesson not found or not enrolled' })
+  @ApiResponse({
+    status: HttpStatus.BAD_REQUEST,
+    description: 'Previous lesson must be completed first',
+  })
+  @ApiResponse({
+    status: HttpStatus.FORBIDDEN,
+    description: 'You do not have permission to complete this lesson',
+  })
+  async completeLesson(
+    @Param('courseId') courseId: string,
+    @Param('lessonId') lessonId: string,
+    @CurrentUser() user: RequestUser,
+  ) {
+    return await this.progressService.completeLesson(user.id, lessonId);
+  }
+
   // Gradebook endpoints
   @Get(':courseId/gradebook')
   @UseGuards(JwtAuthGuard, RolesGuard)
@@ -1536,26 +1634,21 @@ export class CourseController {
     return await this.courseService.setPassingGrade(courseId, user.id, setPassingGradeDto);
   }
 
-  @Post(':courseId/certificates/check-eligibility/:studentId')
+  @Get(':courseId/certificates/eligible-students')
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles('teacher')
   @ApiBearerAuth('JWT-auth')
-  @ApiOperation({ summary: 'Check if a student is eligible for course certificate' })
+  @ApiOperation({ summary: 'Get all students eligible for course certificate' })
   @ApiParam({ name: 'courseId', description: 'Course ID' })
-  @ApiParam({ name: 'studentId', description: 'Student ID' })
   @ApiResponse({
     status: HttpStatus.OK,
-    description: 'Eligibility check completed',
-    type: CertificateEligibilityDto,
+    description: 'Eligible students retrieved successfully',
+    type: EligibleStudentsResponseDto,
   })
   @ApiResponse({ status: HttpStatus.NOT_FOUND, description: 'Course not found' })
-  @ApiResponse({ status: HttpStatus.FORBIDDEN, description: 'Not authorized to check this course' })
-  async checkCertificateEligibility(
-    @Param('courseId') courseId: string,
-    @Param('studentId') studentId: string,
-    @CurrentUser() user: RequestUser,
-  ) {
-    return await this.certificateService.checkEligibility(courseId, studentId, user.id);
+  @ApiResponse({ status: HttpStatus.FORBIDDEN, description: 'Not authorized to view this course' })
+  async getEligibleStudents(@Param('courseId') courseId: string, @CurrentUser() user: RequestUser) {
+    return await this.certificateService.getAllEligibleStudents(courseId, user.id);
   }
 
   @Post(':courseId/certificates/issue/:studentId')
@@ -1657,5 +1750,103 @@ export class CourseController {
       user.id,
       user.role,
     );
+  }
+
+  @Get('certificates/my-certificates')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('student')
+  @ApiBearerAuth('JWT-auth')
+  @ApiOperation({ summary: 'Get all my certificates across all courses' })
+  @ApiResponse({
+    status: HttpStatus.OK,
+    description: 'All certificates retrieved successfully',
+    type: [CertificateDto],
+  })
+  async getAllMyCertificates(@CurrentUser() user: RequestUser) {
+    return await this.certificateService.getAllStudentCertificates(user.id);
+  }
+
+  @Get('analytics/student-dashboard')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('student')
+  @ApiBearerAuth('JWT-auth')
+  @ApiOperation({ summary: 'Get student dashboard analytics' })
+  @ApiResponse({
+    status: HttpStatus.OK,
+    description: 'Student dashboard analytics retrieved successfully',
+    type: StudentDashboardAnalyticsDto,
+  })
+  async getStudentDashboardAnalytics(@CurrentUser() user: RequestUser) {
+    return await this.studentAnalyticsService.getStudentDashboardAnalytics(user.id);
+  }
+
+  @Get('analytics/admin-dashboard')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('admin')
+  @ApiBearerAuth('JWT-auth')
+  @ApiOperation({ summary: 'Get admin dashboard analytics' })
+  @ApiResponse({
+    status: HttpStatus.OK,
+    description: 'Admin dashboard analytics retrieved successfully',
+    type: AdminDashboardAnalyticsDto,
+  })
+  async getAdminDashboardAnalytics() {
+    return await this.adminAnalyticsService.getAdminDashboardAnalytics();
+  }
+
+  @Get('analytics/admin/system')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('admin')
+  @ApiBearerAuth('JWT-auth')
+  @ApiOperation({ summary: 'Get system analytics' })
+  @ApiResponse({
+    status: HttpStatus.OK,
+    description: 'System analytics retrieved successfully',
+    type: SystemAnalyticsDto,
+  })
+  async getSystemAnalytics() {
+    return await this.adminAnalyticsService.getSystemAnalyticsOnly();
+  }
+
+  @Get('analytics/admin/student-performance')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('admin')
+  @ApiBearerAuth('JWT-auth')
+  @ApiOperation({ summary: 'Get student performance analytics' })
+  @ApiResponse({
+    status: HttpStatus.OK,
+    description: 'Student performance analytics retrieved successfully',
+    type: [StudentPerformanceDto],
+  })
+  async getStudentPerformanceAnalytics() {
+    return await this.adminAnalyticsService.getStudentPerformanceOnly();
+  }
+
+  @Get('analytics/admin/instructor-performance')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('admin')
+  @ApiBearerAuth('JWT-auth')
+  @ApiOperation({ summary: 'Get instructor performance analytics' })
+  @ApiResponse({
+    status: HttpStatus.OK,
+    description: 'Instructor performance analytics retrieved successfully',
+    type: [InstructorPerformanceDto],
+  })
+  async getInstructorPerformanceAnalytics() {
+    return await this.adminAnalyticsService.getInstructorPerformanceOnly();
+  }
+
+  @Get('analytics/admin/course-progress')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('admin')
+  @ApiBearerAuth('JWT-auth')
+  @ApiOperation({ summary: 'Get course progress analytics' })
+  @ApiResponse({
+    status: HttpStatus.OK,
+    description: 'Course progress analytics retrieved successfully',
+    type: [AdminCourseProgressDto],
+  })
+  async getCourseProgressAnalytics() {
+    return await this.adminAnalyticsService.getCourseProgressOnly();
   }
 }

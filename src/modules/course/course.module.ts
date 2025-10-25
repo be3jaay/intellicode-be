@@ -10,13 +10,41 @@ import { AssignmentService } from './assignment.service';
 import { ProgressService } from './progress.service';
 import { GradebookService } from './gradebook.service';
 import { CertificateService } from './certificate.service';
+import { StudentAnalyticsService } from './student-analytics.service';
+import { AdminAnalyticsService } from './admin-analytics.service';
 import { SupabaseModule } from '@/core/supabase/supabase.module';
 import { NotificationsModule } from '../notifications/notifications.module';
 
 @Module({
   imports: [SupabaseModule, NotificationsModule],
   controllers: [CourseController],
-  providers: [CourseService, EnrollmentService, LessonService, AdminService, FileStorageService, ModuleService, AssignmentService, ProgressService, GradebookService, CertificateService],
-  exports: [CourseService, EnrollmentService, LessonService, AdminService, FileStorageService, ModuleService, AssignmentService, ProgressService, GradebookService, CertificateService],
+  providers: [
+    CourseService,
+    EnrollmentService,
+    LessonService,
+    AdminService,
+    FileStorageService,
+    ModuleService,
+    AssignmentService,
+    ProgressService,
+    GradebookService,
+    CertificateService,
+    StudentAnalyticsService,
+    AdminAnalyticsService,
+  ],
+  exports: [
+    CourseService,
+    EnrollmentService,
+    LessonService,
+    AdminService,
+    FileStorageService,
+    ModuleService,
+    AssignmentService,
+    ProgressService,
+    GradebookService,
+    CertificateService,
+    StudentAnalyticsService,
+    AdminAnalyticsService,
+  ],
 })
 export class CourseModule {}

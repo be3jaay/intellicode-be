@@ -1,6 +1,21 @@
-import { Injectable, NotFoundException, BadRequestException, ForbiddenException } from '@nestjs/common';
+import {
+  Injectable,
+  NotFoundException,
+  BadRequestException,
+  ForbiddenException,
+} from '@nestjs/common';
 import { PrismaService } from '@/core/prisma/prisma.service';
-import { CreateModuleDto, UpdateModuleDto, ModuleQueryDto, ModuleResponseDto, PaginatedModulesResponseDto, BulkCreateModulesDto, ModuleListQueryDto, PaginatedModuleListResponseDto, ModuleListItemDto } from './dto/module.dto';
+import {
+  CreateModuleDto,
+  UpdateModuleDto,
+  ModuleQueryDto,
+  ModuleResponseDto,
+  PaginatedModulesResponseDto,
+  BulkCreateModulesDto,
+  ModuleListQueryDto,
+  PaginatedModuleListResponseDto,
+  ModuleListItemDto,
+} from './dto/module.dto';
 import { UuidValidator } from '@/common/utils/uuid.validator';
 import { v4 as uuidv4 } from 'uuid';
 
@@ -8,20 +23,25 @@ import { v4 as uuidv4 } from 'uuid';
 export class ModuleService {
   constructor(private readonly prisma: PrismaService) {}
 
-  async getAllModulesByCourseId(courseId: string): Promise<{module_id: string, module_title: string}[]> {
+  async getAllModulesByCourseId(
+    courseId: string,
+  ): Promise<{ module_id: string; module_title: string }[]> {
     const modules = await this.prisma.module.findMany({
       where: { course_id: courseId },
       orderBy: {
         order_index: 'asc',
       },
     });
-    return modules.map(module => ({
+    return modules.map((module) => ({
       module_id: module.id,
       module_title: module.title,
     }));
   }
 
-  async createModule(createModuleDto: CreateModuleDto, instructorId: string): Promise<ModuleResponseDto> {
+  async createModule(
+    createModuleDto: CreateModuleDto,
+    instructorId: string,
+  ): Promise<ModuleResponseDto> {
     const { course_id, ...moduleData } = createModuleDto;
 
     // Validate course ID format
@@ -38,11 +58,13 @@ export class ModuleService {
     });
 
     if (!course) {
-      throw new NotFoundException('Course not found or you do not have permission to add modules to this course');
+      throw new NotFoundException(
+        'Course not found or you do not have permission to add modules to this course',
+      );
     }
 
     // Get the next order index if not provided
-    const orderIndex = moduleData.order_index ?? await this.getNextOrderIndex(course_id);
+    const orderIndex = moduleData.order_index ?? (await this.getNextOrderIndex(course_id));
 
     const module = await this.prisma.module.create({
       data: {
@@ -71,7 +93,11 @@ export class ModuleService {
     return this.formatModuleResponse(module);
   }
 
-  async getModules(courseId: string, query: ModuleQueryDto, instructorId?: string): Promise<PaginatedModulesResponseDto> {
+  async getModules(
+    courseId: string,
+    query: ModuleQueryDto,
+    instructorId?: string,
+  ): Promise<PaginatedModulesResponseDto> {
     // Validate course ID format
     if (!UuidValidator.validate(courseId)) {
       throw new BadRequestException('Invalid course ID format');
@@ -111,10 +137,7 @@ export class ModuleService {
         where,
         skip: offset,
         take: limit,
-        orderBy: [
-          { order_index: 'asc' },
-          { created_at: 'asc' },
-        ],
+        orderBy: [{ order_index: 'asc' }, { created_at: 'asc' }],
         include: {
           course: {
             select: {
@@ -134,7 +157,7 @@ export class ModuleService {
       this.prisma.module.count({ where }),
     ]);
 
-    const formattedModules = modules.map(module => this.formatModuleResponse(module));
+    const formattedModules = modules.map((module) => this.formatModuleResponse(module));
 
     return {
       modules: formattedModules,
@@ -179,13 +202,19 @@ export class ModuleService {
     });
 
     if (!module) {
-      throw new NotFoundException('Module not found or you do not have permission to view this module');
+      throw new NotFoundException(
+        'Module not found or you do not have permission to view this module',
+      );
     }
 
     return this.formatModuleResponse(module);
   }
 
-  async updateModule(moduleId: string, updateModuleDto: UpdateModuleDto, instructorId: string): Promise<ModuleResponseDto> {
+  async updateModule(
+    moduleId: string,
+    updateModuleDto: UpdateModuleDto,
+    instructorId: string,
+  ): Promise<ModuleResponseDto> {
     // Validate module ID format
     if (!UuidValidator.validate(moduleId)) {
       throw new BadRequestException('Invalid module ID format');
@@ -202,7 +231,9 @@ export class ModuleService {
     });
 
     if (!existingModule) {
-      throw new NotFoundException('Module not found or you do not have permission to update this module');
+      throw new NotFoundException(
+        'Module not found or you do not have permission to update this module',
+      );
     }
 
     const module = await this.prisma.module.update({
@@ -253,12 +284,16 @@ export class ModuleService {
     });
 
     if (!module) {
-      throw new NotFoundException('Module not found or you do not have permission to delete this module');
+      throw new NotFoundException(
+        'Module not found or you do not have permission to delete this module',
+      );
     }
 
     // Check if module has lessons or files
     if (module._count.lessons > 0 || module._count.files > 0) {
-      throw new BadRequestException('Cannot delete module that contains lessons or files. Please remove all lessons and files first.');
+      throw new BadRequestException(
+        'Cannot delete module that contains lessons or files. Please remove all lessons and files first.',
+      );
     }
 
     await this.prisma.module.delete({
@@ -266,7 +301,10 @@ export class ModuleService {
     });
   }
 
-  async bulkCreateModules(bulkCreateDto: BulkCreateModulesDto, instructorId: string): Promise<ModuleResponseDto[]> {
+  async bulkCreateModules(
+    bulkCreateDto: BulkCreateModulesDto,
+    instructorId: string,
+  ): Promise<ModuleResponseDto[]> {
     const { course_id, modules } = bulkCreateDto;
 
     // Validate course ID format
@@ -283,7 +321,9 @@ export class ModuleService {
     });
 
     if (!course) {
-      throw new NotFoundException('Course not found or you do not have permission to add modules to this course');
+      throw new NotFoundException(
+        'Course not found or you do not have permission to add modules to this course',
+      );
     }
 
     // Get the starting order index
@@ -306,7 +346,7 @@ export class ModuleService {
       where: {
         course_id,
         id: {
-          in: modulesToCreate.map(m => m.id),
+          in: modulesToCreate.map((m) => m.id),
         },
       },
       include: {
@@ -329,10 +369,13 @@ export class ModuleService {
       },
     });
 
-    return createdModulesWithDetails.map(module => this.formatModuleResponse(module));
+    return createdModulesWithDetails.map((module) => this.formatModuleResponse(module));
   }
 
-  async getCourseModules(courseId: string, query: ModuleQueryDto): Promise<PaginatedModulesResponseDto> {
+  async getCourseModules(
+    courseId: string,
+    query: ModuleQueryDto,
+  ): Promise<PaginatedModulesResponseDto> {
     // Validate course ID format
     if (!UuidValidator.validate(courseId)) {
       throw new BadRequestException('Invalid course ID format');
@@ -377,9 +420,9 @@ export class ModuleService {
   }
 
   async getCourseModulesList(
-    courseId: string, 
-    query: ModuleListQueryDto, 
-    userId: string
+    courseId: string,
+    query: ModuleListQueryDto,
+    userId: string,
   ): Promise<PaginatedModuleListResponseDto> {
     const { offset = 0, limit = 10, search } = query;
 
@@ -392,11 +435,8 @@ export class ModuleService {
     const course = await this.prisma.course.findFirst({
       where: {
         id: courseId,
-        OR: [
-          { instructor_id: userId },
-          { enrollments: { some: { student_id: userId } } }
-        ]
-      }
+        OR: [{ instructor_id: userId }, { enrollments: { some: { student_id: userId } } }],
+      },
     });
 
     if (!course) {
@@ -405,19 +445,19 @@ export class ModuleService {
 
     // Build search conditions
     const whereConditions: any = {
-      course_id: courseId
+      course_id: courseId,
     };
 
     if (search) {
       whereConditions.OR = [
         { title: { contains: search, mode: 'insensitive' } },
-        { description: { contains: search, mode: 'insensitive' } }
+        { description: { contains: search, mode: 'insensitive' } },
       ];
     }
 
     // Get total count
     const total = await this.prisma.module.count({
-      where: whereConditions
+      where: whereConditions,
     });
 
     // Get modules with counts and lessons
@@ -432,8 +472,8 @@ export class ModuleService {
         _count: {
           select: {
             lessons: true,
-            assignments: true
-          }
+            assignments: true,
+          },
         },
         lessons: {
           select: {
@@ -446,22 +486,22 @@ export class ModuleService {
             estimated_duration: true,
             tags: true,
             created_at: true,
-            updated_at: true
+            updated_at: true,
           },
           orderBy: {
-            order_index: 'asc'
-          }
-        }
+            order_index: 'asc',
+          },
+        },
       },
       orderBy: {
-        order_index: 'asc'
+        order_index: 'asc',
       },
       skip: offset,
-      take: limit
+      take: limit,
     });
 
     // Format response
-    const formattedModules: ModuleListItemDto[] = modules.map(module => ({
+    const formattedModules: ModuleListItemDto[] = modules.map((module) => ({
       id: module.id,
       title: module.title,
       description: module.description,
@@ -469,7 +509,7 @@ export class ModuleService {
       updated_at: module.updated_at,
       lessons_count: module._count.lessons,
       activities_count: module._count.assignments,
-      lessons: module.lessons.map(lesson => ({
+      lessons: module.lessons.map((lesson) => ({
         id: lesson.id,
         title: lesson.title,
         description: lesson.description,
@@ -479,8 +519,8 @@ export class ModuleService {
         estimated_duration: lesson.estimated_duration,
         tags: lesson.tags,
         created_at: lesson.created_at,
-        updated_at: lesson.updated_at
-      }))
+        updated_at: lesson.updated_at,
+      })),
     }));
 
     return {
@@ -489,7 +529,7 @@ export class ModuleService {
       offset,
       limit,
       hasNext: offset + limit < total,
-      hasPrevious: offset > 0
+      hasPrevious: offset > 0,
     };
   }
 }
