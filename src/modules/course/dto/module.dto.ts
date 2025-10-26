@@ -147,9 +147,9 @@ export class BulkCreateModulesDto {
   @IsNotEmpty()
   course_id: string;
 
-  @ApiProperty({ 
+  @ApiProperty({
     description: 'Array of modules to create',
-    type: [CreateModuleDto]
+    type: [CreateModuleDto],
   })
   @IsNotEmpty()
   modules: Omit<CreateModuleDto, 'course_id'>[];

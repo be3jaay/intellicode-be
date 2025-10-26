@@ -56,16 +56,16 @@ export class SupabaseService {
   async createBucketIfNotExists(bucketName: string): Promise<void> {
     try {
       const { data: buckets } = await this.client.storage.listBuckets();
-      const bucketExists = buckets?.some(bucket => bucket.name === bucketName);
-      
+      const bucketExists = buckets?.some((bucket) => bucket.name === bucketName);
+
       if (!bucketExists) {
         this.logger.log(`Creating bucket: ${bucketName}`);
         const { error } = await this.client.storage.createBucket(bucketName, {
           public: true,
           fileSizeLimit: 5242880, // 5MB
-          allowedMimeTypes: ['image/jpeg', 'image/png', 'image/webp']
+          allowedMimeTypes: ['image/jpeg', 'image/png', 'image/webp'],
         });
-        
+
         if (error) {
           this.logger.error(`Error creating bucket ${bucketName}:`, error);
         } else {
@@ -119,7 +119,12 @@ export class SupabaseService {
       case 'pdf':
         return ['application/pdf'];
       case 'document':
-        return ['application/pdf', 'application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', 'text/plain'];
+        return [
+          'application/pdf',
+          'application/msword',
+          'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+          'text/plain',
+        ];
       case 'assignments':
       case 'assignment-files':
         return [
@@ -140,7 +145,7 @@ export class SupabaseService {
           'video/webm',
           'video/ogg',
           'video/avi',
-          'video/mov'
+          'video/mov',
         ];
       case 'assignment-submissions':
       case 'submission-files':
@@ -167,10 +172,17 @@ export class SupabaseService {
           'text/css',
           'text/html',
           'application/json',
-          'application/xml'
+          'application/xml',
         ];
       default:
-        return ['image/jpeg', 'image/jpg', 'image/png', 'image/webp', 'video/mp4', 'application/pdf'];
+        return [
+          'image/jpeg',
+          'image/jpg',
+          'image/png',
+          'image/webp',
+          'video/mp4',
+          'application/pdf',
+        ];
     }
   }
 
@@ -213,7 +225,7 @@ export class SupabaseService {
     fileType: string,
     category: string,
     courseId: string,
-    lessonId?: string
+    lessonId?: string,
   ): Promise<string> {
     try {
       const bucket = this.getBucketName(fileType);
@@ -225,13 +237,17 @@ export class SupabaseService {
 
       // Validate file type
       if (!allowedMimeTypes.includes(file.mimetype)) {
-        throw new BadRequestException(`Invalid file type. Allowed types for ${fileType}: ${allowedMimeTypes.join(', ')}`);
+        throw new BadRequestException(
+          `Invalid file type. Allowed types for ${fileType}: ${allowedMimeTypes.join(', ')}`,
+        );
       }
 
       // Validate file size
       if (file.size > maxSize) {
         const maxSizeMB = Math.round(maxSize / (1024 * 1024));
-        throw new BadRequestException(`File size too large. Maximum size for ${fileType} is ${maxSizeMB}MB.`);
+        throw new BadRequestException(
+          `File size too large. Maximum size for ${fileType} is ${maxSizeMB}MB.`,
+        );
       }
 
       // Generate unique filename
@@ -243,20 +259,18 @@ export class SupabaseService {
       const filePath = `${folder}/${fileName}`;
 
       // Try to upload with service role client first
-      let uploadResult = await this.client.storage
-        .from(bucket)
-        .upload(filePath, file.buffer, {
-          contentType: file.mimetype,
-          upsert: false,
-        });
+      let uploadResult = await this.client.storage.from(bucket).upload(filePath, file.buffer, {
+        contentType: file.mimetype,
+        upsert: false,
+      });
 
       // If service role fails, try with anon key (bypass RLS)
       if (uploadResult.error) {
         this.logger.warn('Service role upload failed, trying with anon key:', uploadResult.error);
-        
+
         const supabaseUrl = this.configService.get<string>('SUPABASE_URL');
         const supabaseAnonKey = this.configService.get<string>('SUPABASE_ANON_KEY');
-        
+
         const anonClient = createClient(supabaseUrl, supabaseAnonKey, {
           auth: {
             autoRefreshToken: false,
@@ -264,24 +278,23 @@ export class SupabaseService {
           },
         });
 
-        uploadResult = await anonClient.storage
-          .from(bucket)
-          .upload(filePath, file.buffer, {
-            contentType: file.mimetype,
-            upsert: false,
-          });
+        uploadResult = await anonClient.storage.from(bucket).upload(filePath, file.buffer, {
+          contentType: file.mimetype,
+          upsert: false,
+        });
       }
 
       // If both service role and anon key fail, try direct API call (bypasses RLS completely)
       if (uploadResult.error) {
-        this.logger.warn('Both service role and anon key failed, trying direct API call:', uploadResult.error);
+        this.logger.warn(
+          'Both service role and anon key failed, trying direct API call:',
+          uploadResult.error,
+        );
         return await this.uploadFileDirect(file, bucket, filePath);
       }
 
       // Get public URL
-      const { data: publicUrlData } = this.client.storage
-        .from(bucket)
-        .getPublicUrl(filePath);
+      const { data: publicUrlData } = this.client.storage.from(bucket).getPublicUrl(filePath);
 
       if (!publicUrlData?.publicUrl) {
         throw new BadRequestException('Failed to get public URL for uploaded file');
@@ -289,7 +302,6 @@ export class SupabaseService {
 
       this.logger.log(`File uploaded successfully: ${publicUrlData.publicUrl}`);
       return publicUrlData.publicUrl;
-
     } catch (error) {
       this.logger.error('Error in uploadFile:', error);
       if (error instanceof BadRequestException) {
@@ -309,7 +321,7 @@ export class SupabaseService {
   async uploadImage(
     file: Express.Multer.File,
     bucket: string = 'course-thumbnails',
-    folder: string = 'thumbnails'
+    folder: string = 'thumbnails',
   ): Promise<string> {
     try {
       // Ensure bucket exists
@@ -318,7 +330,9 @@ export class SupabaseService {
       // Validate file type
       const allowedMimeTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp'];
       if (!allowedMimeTypes.includes(file.mimetype)) {
-        throw new BadRequestException('Invalid file type. Only JPEG, PNG, and WebP images are allowed.');
+        throw new BadRequestException(
+          'Invalid file type. Only JPEG, PNG, and WebP images are allowed.',
+        );
       }
 
       // Validate file size (5MB limit)
@@ -335,20 +349,18 @@ export class SupabaseService {
       const filePath = `${folder}/${fileName}`;
 
       // Try to upload with service role client first
-      let uploadResult = await this.client.storage
-        .from(bucket)
-        .upload(filePath, file.buffer, {
-          contentType: file.mimetype,
-          upsert: false,
-        });
+      let uploadResult = await this.client.storage.from(bucket).upload(filePath, file.buffer, {
+        contentType: file.mimetype,
+        upsert: false,
+      });
 
       // If service role fails, try with anon key (bypass RLS)
       if (uploadResult.error) {
         this.logger.warn('Service role upload failed, trying with anon key:', uploadResult.error);
-        
+
         const supabaseUrl = this.configService.get<string>('SUPABASE_URL');
         const supabaseAnonKey = this.configService.get<string>('SUPABASE_ANON_KEY');
-        
+
         const anonClient = createClient(supabaseUrl, supabaseAnonKey, {
           auth: {
             autoRefreshToken: false,
@@ -356,12 +368,10 @@ export class SupabaseService {
           },
         });
 
-        uploadResult = await anonClient.storage
-          .from(bucket)
-          .upload(filePath, file.buffer, {
-            contentType: file.mimetype,
-            upsert: false,
-          });
+        uploadResult = await anonClient.storage.from(bucket).upload(filePath, file.buffer, {
+          contentType: file.mimetype,
+          upsert: false,
+        });
       }
 
       if (uploadResult.error) {
@@ -370,9 +380,7 @@ export class SupabaseService {
       }
 
       // Get public URL
-      const { data: publicUrlData } = this.client.storage
-        .from(bucket)
-        .getPublicUrl(filePath);
+      const { data: publicUrlData } = this.client.storage.from(bucket).getPublicUrl(filePath);
 
       if (!publicUrlData?.publicUrl) {
         throw new BadRequestException('Failed to get public URL for uploaded image');
@@ -380,7 +388,6 @@ export class SupabaseService {
 
       this.logger.log(`Image uploaded successfully: ${publicUrlData.publicUrl}`);
       return publicUrlData.publicUrl;
-
     } catch (error) {
       this.logger.error('Error in uploadImage:', error);
       if (error instanceof BadRequestException) {
@@ -400,17 +407,17 @@ export class SupabaseService {
   async uploadFileDirect(
     file: Express.Multer.File,
     bucket: string,
-    filePath: string
+    filePath: string,
   ): Promise<string> {
     try {
       // Use direct API call to bypass RLS
       const supabaseUrl = this.configService.get<string>('SUPABASE_URL');
       const supabaseServiceKey = this.configService.get<string>('SUPABASE_SERVICE_ROLE_KEY');
-      
+
       const response = await fetch(`${supabaseUrl}/storage/v1/object/${bucket}/${filePath}`, {
         method: 'POST',
         headers: {
-          'Authorization': `Bearer ${supabaseServiceKey}`,
+          Authorization: `Bearer ${supabaseServiceKey}`,
           'Content-Type': file.mimetype,
         },
         body: file.buffer as any,
@@ -423,10 +430,9 @@ export class SupabaseService {
 
       // Get public URL
       const publicUrl = `${supabaseUrl}/storage/v1/object/public/${bucket}/${filePath}`;
-      
+
       this.logger.log(`File uploaded successfully via direct API: ${publicUrl}`);
       return publicUrl;
-
     } catch (error) {
       this.logger.error('Error in uploadFileDirect:', error);
       if (error instanceof BadRequestException) {
@@ -446,13 +452,15 @@ export class SupabaseService {
   async uploadImageDirect(
     file: Express.Multer.File,
     bucket: string = 'course-thumbnails',
-    folder: string = 'thumbnails'
+    folder: string = 'thumbnails',
   ): Promise<string> {
     try {
       // Validate file type
       const allowedMimeTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp'];
       if (!allowedMimeTypes.includes(file.mimetype)) {
-        throw new BadRequestException('Invalid file type. Only JPEG, PNG, and WebP images are allowed.');
+        throw new BadRequestException(
+          'Invalid file type. Only JPEG, PNG, and WebP images are allowed.',
+        );
       }
 
       // Validate file size (5MB limit)
@@ -471,11 +479,11 @@ export class SupabaseService {
       // Use direct API call to bypass RLS
       const supabaseUrl = this.configService.get<string>('SUPABASE_URL');
       const supabaseServiceKey = this.configService.get<string>('SUPABASE_SERVICE_ROLE_KEY');
-      
+
       const response = await fetch(`${supabaseUrl}/storage/v1/object/${bucket}/${filePath}`, {
         method: 'POST',
         headers: {
-          'Authorization': `Bearer ${supabaseServiceKey}`,
+          Authorization: `Bearer ${supabaseServiceKey}`,
           'Content-Type': file.mimetype,
         },
         body: file.buffer as any,
@@ -488,10 +496,9 @@ export class SupabaseService {
 
       // Get public URL
       const publicUrl = `${supabaseUrl}/storage/v1/object/public/${bucket}/${filePath}`;
-      
+
       this.logger.log(`Image uploaded successfully: ${publicUrl}`);
       return publicUrl;
-
     } catch (error) {
       this.logger.error('Error in uploadImageDirect:', error);
       if (error instanceof BadRequestException) {
@@ -514,9 +521,7 @@ export class SupabaseService {
       const folder = urlParts[urlParts.length - 2];
       const filePath = `${folder}/${fileName}`;
 
-      const { error } = await this.client.storage
-        .from(bucket)
-        .remove([filePath]);
+      const { error } = await this.client.storage.from(bucket).remove([filePath]);
 
       if (error) {
         this.logger.error('Error deleting file from Supabase Storage:', error);
@@ -536,10 +541,7 @@ export class SupabaseService {
    * @param userId - The user ID
    * @returns Promise with the public URL of the uploaded profile picture
    */
-  async uploadProfilePicture(
-    file: Express.Multer.File,
-    userId: string
-  ): Promise<string> {
+  async uploadProfilePicture(file: Express.Multer.File, userId: string): Promise<string> {
     try {
       const bucket = 'profile-pictures';
       const allowedMimeTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp', 'image/gif'];
@@ -550,12 +552,16 @@ export class SupabaseService {
 
       // Validate file type
       if (!allowedMimeTypes.includes(file.mimetype)) {
-        throw new BadRequestException('Invalid file type. Only JPEG, PNG, WebP, and GIF images are allowed for profile pictures.');
+        throw new BadRequestException(
+          'Invalid file type. Only JPEG, PNG, WebP, and GIF images are allowed for profile pictures.',
+        );
       }
 
       // Validate file size
       if (file.size > maxSize) {
-        throw new BadRequestException('File size too large. Maximum size for profile pictures is 5MB.');
+        throw new BadRequestException(
+          'File size too large. Maximum size for profile pictures is 5MB.',
+        );
       }
 
       // Generate unique filename
@@ -566,20 +572,18 @@ export class SupabaseService {
       const filePath = `users/${userId}/${fileName}`;
 
       // Try to upload with service role client first
-      let uploadResult = await this.client.storage
-        .from(bucket)
-        .upload(filePath, file.buffer, {
-          contentType: file.mimetype,
-          upsert: false,
-        });
+      let uploadResult = await this.client.storage.from(bucket).upload(filePath, file.buffer, {
+        contentType: file.mimetype,
+        upsert: false,
+      });
 
       // If service role fails, try with anon key (bypass RLS)
       if (uploadResult.error) {
         this.logger.warn('Service role upload failed, trying with anon key:', uploadResult.error);
-        
+
         const supabaseUrl = this.configService.get<string>('SUPABASE_URL');
         const supabaseAnonKey = this.configService.get<string>('SUPABASE_ANON_KEY');
-        
+
         const anonClient = createClient(supabaseUrl, supabaseAnonKey, {
           auth: {
             autoRefreshToken: false,
@@ -587,24 +591,23 @@ export class SupabaseService {
           },
         });
 
-        uploadResult = await anonClient.storage
-          .from(bucket)
-          .upload(filePath, file.buffer, {
-            contentType: file.mimetype,
-            upsert: false,
-          });
+        uploadResult = await anonClient.storage.from(bucket).upload(filePath, file.buffer, {
+          contentType: file.mimetype,
+          upsert: false,
+        });
       }
 
       // If both service role and anon key fail, try direct API call (bypasses RLS completely)
       if (uploadResult.error) {
-        this.logger.warn('Both service role and anon key failed, trying direct API call:', uploadResult.error);
+        this.logger.warn(
+          'Both service role and anon key failed, trying direct API call:',
+          uploadResult.error,
+        );
         return await this.uploadFileDirect(file, bucket, filePath);
       }
 
       // Get public URL
-      const { data: publicUrlData } = this.client.storage
-        .from(bucket)
-        .getPublicUrl(filePath);
+      const { data: publicUrlData } = this.client.storage.from(bucket).getPublicUrl(filePath);
 
       if (!publicUrlData?.publicUrl) {
         throw new BadRequestException('Failed to get public URL for uploaded profile picture');
@@ -612,7 +615,6 @@ export class SupabaseService {
 
       this.logger.log(`Profile picture uploaded successfully: ${publicUrlData.publicUrl}`);
       return publicUrlData.publicUrl;
-
     } catch (error) {
       this.logger.error('Error in uploadProfilePicture:', error);
       if (error instanceof BadRequestException) {
@@ -629,7 +631,7 @@ export class SupabaseService {
   async deleteProfilePicture(profilePictureUrl: string): Promise<void> {
     try {
       const bucket = 'profile-pictures';
-      
+
       // Extract file path from URL
       const urlParts = profilePictureUrl.split('/');
       const bucketIndex = urlParts.indexOf(bucket);
@@ -637,12 +639,10 @@ export class SupabaseService {
         this.logger.warn('Invalid profile picture URL format:', profilePictureUrl);
         return;
       }
-      
+
       const filePath = urlParts.slice(bucketIndex + 1).join('/');
 
-      const { error } = await this.client.storage
-        .from(bucket)
-        .remove([filePath]);
+      const { error } = await this.client.storage.from(bucket).remove([filePath]);
 
       if (error) {
         this.logger.error('Error deleting profile picture from Supabase Storage:', error);
@@ -665,7 +665,7 @@ export class SupabaseService {
   async getSignedUrl(
     filePath: string,
     bucket: string = 'course-thumbnails',
-    expiresIn: number = 3600
+    expiresIn: number = 3600,
   ): Promise<string> {
     try {
       const { data, error } = await this.client.storage
@@ -683,4 +683,3 @@ export class SupabaseService {
     }
   }
 }
-

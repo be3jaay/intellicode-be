@@ -314,6 +314,10 @@ export class CertificateService {
           has_certificate: !!existingCertificate,
           certificate_id: existingCertificate?.id,
           certificate_issued_at: existingCertificate?.issued_at,
+          certificate_status: existingCertificate?.status,
+          is_certificate_revoked: existingCertificate?.status === 'revoked',
+          certificate_revoked_at: existingCertificate?.revoked_at,
+          certificate_revocation_reason: existingCertificate?.revocation_reason,
         });
       }
     }
@@ -398,18 +402,25 @@ export class CertificateService {
   }
 
   async revokeCertificate(
-    certificateId: string,
+    courseId: string,
+    studentId: string,
     instructorId: string,
     revokeCertificateDto: RevokeCertificateDto,
   ): Promise<CertificateDto> {
     UuidValidator.validateMultiple({
-      'certificate ID': certificateId,
+      'course ID': courseId,
+      'student ID': studentId,
       'instructor ID': instructorId,
     });
 
-    // Find certificate and verify instructor owns the course
+    // Find certificate by course and student, and verify instructor owns the course
     const certificate = await this.prisma.courseCertificate.findUnique({
-      where: { id: certificateId },
+      where: {
+        course_id_student_id: {
+          course_id: courseId,
+          student_id: studentId,
+        },
+      },
       include: {
         course: true,
       },
@@ -429,7 +440,7 @@ export class CertificateService {
 
     // Revoke certificate
     const updatedCertificate = await this.prisma.courseCertificate.update({
-      where: { id: certificateId },
+      where: { id: certificate.id },
       data: {
         status: 'revoked',
         revoked_at: new Date(),

@@ -28,4 +28,3 @@ export interface RequestUser {
   role: PrismaUserRole;
   fullName: string;
 }
-

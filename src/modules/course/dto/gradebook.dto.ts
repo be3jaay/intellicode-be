@@ -1,4 +1,13 @@
-import { IsString, IsInt, IsOptional, IsEnum, IsNumber, Min, Max, IsDateString } from 'class-validator';
+import {
+  IsString,
+  IsInt,
+  IsOptional,
+  IsEnum,
+  IsNumber,
+  Min,
+  Max,
+  IsDateString,
+} from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
 
@@ -38,7 +47,11 @@ export class GradebookQueryDto {
   @Min(1)
   limit?: number = 10;
 
-  @ApiPropertyOptional({ enum: GradebookSortBy, description: 'Sort by field', default: GradebookSortBy.NAME })
+  @ApiPropertyOptional({
+    enum: GradebookSortBy,
+    description: 'Sort by field',
+    default: GradebookSortBy.NAME,
+  })
   @IsOptional()
   @IsEnum(GradebookSortBy)
   sort_by?: GradebookSortBy = GradebookSortBy.NAME;
@@ -205,6 +218,9 @@ export class InstructorGradebookRowDto {
   @ApiProperty({ description: 'Student ID' })
   student_id: string;
 
+  @ApiProperty({ description: 'Profile Picture' })
+  profile_picture: string;
+
   @ApiProperty({ description: 'First name' })
   first_name: string;
 
@@ -322,5 +338,3 @@ export class UpdateCourseGradeWeightsDto {
   @Max(100)
   exam_weight: number;
 }
-
-

@@ -47,4 +47,3 @@ export class AuthResponseDto {
   })
   requiresApproval?: boolean;
 }
-

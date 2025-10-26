@@ -14,12 +14,7 @@ import { SupabaseModule } from '@/core/supabase/supabase.module';
     SupabaseModule,
   ],
   controllers: [AuthController],
-  providers: [
-    AuthService,
-    SupabaseJwtStrategy,
-    LocalStrategy,
-  ],
+  providers: [AuthService, SupabaseJwtStrategy, LocalStrategy],
   exports: [AuthService],
 })
 export class AuthModule {}
-

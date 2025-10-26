@@ -8,4 +8,3 @@ export class JwtAuthGuard extends AuthGuard('supabase-jwt') {
     return super.canActivate(context);
   }
 }
-

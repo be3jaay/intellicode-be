@@ -18,4 +18,3 @@ export class ApproveInstructorDto {
   @IsOptional()
   reason?: string;
 }
-

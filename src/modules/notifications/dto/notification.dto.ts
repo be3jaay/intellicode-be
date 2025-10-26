@@ -2,7 +2,10 @@ import { IsString, IsBoolean, IsOptional, IsEnum, IsInt, Min } from 'class-valid
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
 // Import Prisma enums to ensure type compatibility
-import { NotificationType as PrismaNotificationType, NotificationRelatedType as PrismaNotificationRelatedType } from '@prisma/client';
+import {
+  NotificationType as PrismaNotificationType,
+  NotificationRelatedType as PrismaNotificationRelatedType,
+} from '@prisma/client';
 
 export const NotificationType = PrismaNotificationType;
 export type NotificationType = PrismaNotificationType;
@@ -127,5 +130,3 @@ export class MarkAllAsReadResponseDto {
   @ApiProperty()
   message: string;
 }
-
-

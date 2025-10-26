@@ -18,4 +18,3 @@ export class SuspendUserDto {
   @IsOptional()
   reason?: string;
 }
-

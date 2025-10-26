@@ -1,4 +1,10 @@
-import { registerDecorator, ValidationOptions, ValidatorConstraint, ValidatorConstraintInterface, ValidationArguments } from 'class-validator';
+import {
+  registerDecorator,
+  ValidationOptions,
+  ValidatorConstraint,
+  ValidatorConstraintInterface,
+  ValidationArguments,
+} from 'class-validator';
 import { AssignmentSubtype } from '../../modules/course/dto/assignment.dto';
 
 @ValidatorConstraint({ name: 'assignmentSubtypeValidation', async: false })
@@ -15,15 +21,15 @@ export class AssignmentSubtypeValidationConstraint implements ValidatorConstrain
       case AssignmentSubtype.code_sandbox:
         // For code_sandbox: questions can be empty array, starterCode can be provided
         return this.validateCodeSandbox(object);
-      
+
       case AssignmentSubtype.quiz_form:
         // For quiz_form: starterCode should be null/undefined
         return this.validateQuizForm(object);
-      
+
       case AssignmentSubtype.file_upload:
         // For file_upload: starterCode should be null/undefined
         return this.validateFileUpload(object);
-      
+
       default:
         return true;
     }

@@ -146,6 +146,18 @@ export class EligibleStudentDto {
 
   @ApiPropertyOptional({ description: 'Certificate issue date if already issued' })
   certificate_issued_at?: Date;
+
+  @ApiPropertyOptional({ description: 'Certificate status: active, revoked, or expired' })
+  certificate_status?: string;
+
+  @ApiProperty({ description: 'Whether the certificate is revoked' })
+  is_certificate_revoked: boolean;
+
+  @ApiPropertyOptional({ description: 'Certificate revocation date if revoked' })
+  certificate_revoked_at?: Date;
+
+  @ApiPropertyOptional({ description: 'Reason for certificate revocation' })
+  certificate_revocation_reason?: string;
 }
 
 export class EligibleStudentsResponseDto {

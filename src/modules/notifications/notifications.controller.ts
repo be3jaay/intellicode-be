@@ -14,7 +14,14 @@ import { NotificationsService } from './notifications.service';
 import { CurrentUser } from '@/common/decorators/current-user.decorator';
 import { RequestUser } from '../auth/interfaces/user.interface';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
-import { ApiBearerAuth, ApiOperation, ApiResponse, ApiQuery, ApiParam, ApiTags } from '@nestjs/swagger';
+import {
+  ApiBearerAuth,
+  ApiOperation,
+  ApiResponse,
+  ApiQuery,
+  ApiParam,
+  ApiTags,
+} from '@nestjs/swagger';
 import {
   NotificationResponseDto,
   NotificationQueryDto,
@@ -144,6 +151,3 @@ export class NotificationsController {
     return await this.notificationsService.deleteNotification(id, user.id);
   }
 }
-
-
-

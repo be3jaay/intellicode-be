@@ -44,10 +44,7 @@ export class RateLimitMiddleware implements NestMiddleware {
 
     res.setHeader('X-RateLimit-Limit', this.maxRequests);
     res.setHeader('X-RateLimit-Remaining', remaining);
-    res.setHeader(
-      'X-RateLimit-Reset',
-      new Date(current.resetTime).toISOString(),
-    );
+    res.setHeader('X-RateLimit-Reset', new Date(current.resetTime).toISOString());
 
     if (current.count > this.maxRequests) {
       this.logger.warn(`Rate limit exceeded for ${key}`, 'RateLimit');
@@ -67,7 +64,7 @@ export class RateLimitMiddleware implements NestMiddleware {
 
   private cleanup(): void {
     const now = Date.now();
-    Object.keys(this.store).forEach(key => {
+    Object.keys(this.store).forEach((key) => {
       if (now > this.store[key].resetTime) {
         delete this.store[key];
       }

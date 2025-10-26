@@ -1,12 +1,12 @@
 import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '@/core/prisma/prisma.service';
 import { SupabaseService } from '@/core/supabase/supabase.service';
-import { 
-  FileUploadDto, 
-  FileUploadResponseDto, 
+import {
+  FileUploadDto,
+  FileUploadResponseDto,
   FileQueryDto,
   PaginatedFilesResponseDto,
-  BulkFileUploadDto
+  BulkFileUploadDto,
 } from './dto/file-upload.dto';
 import { FileType, FileCategory } from '@prisma/client';
 import { v4 as uuidv4 } from 'uuid';
@@ -16,22 +16,22 @@ import { UuidValidator } from '@/common/utils/uuid.validator';
 export class FileStorageService {
   constructor(
     private readonly prisma: PrismaService,
-    private readonly supabaseService: SupabaseService
+    private readonly supabaseService: SupabaseService,
   ) {}
 
   async uploadFile(
     file: Express.Multer.File,
-    uploadDto: FileUploadDto
+    uploadDto: FileUploadDto,
   ): Promise<FileUploadResponseDto> {
     // Validate UUIDs
     UuidValidator.validateMultiple({
       'course ID': uploadDto.course_id,
-      'lesson ID': uploadDto.lesson_id || 'dummy'
+      'lesson ID': uploadDto.lesson_id || 'dummy',
     });
 
     // Verify course exists
     const course = await this.prisma.course.findUnique({
-      where: { id: uploadDto.course_id }
+      where: { id: uploadDto.course_id },
     });
 
     if (!course) {
@@ -41,12 +41,12 @@ export class FileStorageService {
     // Verify lesson exists if lesson_id is provided
     if (uploadDto.lesson_id) {
       const lesson = await this.prisma.lesson.findFirst({
-        where: { 
+        where: {
           id: uploadDto.lesson_id,
           module: {
-            course_id: uploadDto.course_id
-          }
-        }
+            course_id: uploadDto.course_id,
+          },
+        },
       });
 
       if (!lesson) {
@@ -60,7 +60,7 @@ export class FileStorageService {
       uploadDto.file_type,
       uploadDto.category,
       uploadDto.course_id,
-      uploadDto.lesson_id
+      uploadDto.lesson_id,
     );
 
     // Generate unique filename for database
@@ -83,8 +83,8 @@ export class FileStorageService {
         storage_path: publicUrl.split('/').slice(-2).join('/'), // Extract path from URL
         course_id: uploadDto.course_id,
         lesson_id: uploadDto.lesson_id,
-        description: uploadDto.description
-      }
+        description: uploadDto.description,
+      },
     });
 
     return {
@@ -98,7 +98,7 @@ export class FileStorageService {
       uploaded_at: fileRecord.uploaded_at,
       course_id: fileRecord.course_id,
       lesson_id: fileRecord.lesson_id,
-      description: fileRecord.description
+      description: fileRecord.description,
     };
   }
 
@@ -109,19 +109,19 @@ export class FileStorageService {
 
     // Build where clause
     const where: any = {};
-    
+
     if (query.file_type) {
       where.file_type = query.file_type;
     }
-    
+
     if (query.category) {
       where.category = query.category;
     }
-    
+
     if (query.course_id) {
       where.course_id = query.course_id;
     }
-    
+
     if (query.lesson_id) {
       where.lesson_id = query.lesson_id;
     }
@@ -138,26 +138,26 @@ export class FileStorageService {
         course: {
           select: {
             id: true,
-            title: true
-          }
+            title: true,
+          },
         },
         lesson: {
           select: {
             id: true,
-            title: true
-          }
-        }
+            title: true,
+          },
+        },
       },
       orderBy: {
-        uploaded_at: 'desc'
-      }
+        uploaded_at: 'desc',
+      },
     });
 
     const totalPages = Math.ceil(total / limit);
     const currentPage = Math.floor(offset / limit) + 1;
 
     return {
-      data: files.map(file => ({
+      data: files.map((file) => ({
         id: file.id,
         filename: file.filename,
         file_type: file.file_type,
@@ -168,13 +168,13 @@ export class FileStorageService {
         uploaded_at: file.uploaded_at,
         course_id: file.course_id,
         lesson_id: file.lesson_id,
-        description: file.description
+        description: file.description,
       })),
       total,
       offset,
       limit,
       totalPages,
-      currentPage
+      currentPage,
     };
   }
 
@@ -188,16 +188,16 @@ export class FileStorageService {
         course: {
           select: {
             id: true,
-            title: true
-          }
+            title: true,
+          },
         },
         lesson: {
           select: {
             id: true,
-            title: true
-          }
-        }
-      }
+            title: true,
+          },
+        },
+      },
     });
 
     if (!file) {
@@ -215,7 +215,7 @@ export class FileStorageService {
       uploaded_at: file.uploaded_at,
       course_id: file.course_id,
       lesson_id: file.lesson_id,
-      description: file.description
+      description: file.description,
     };
   }
 
@@ -224,7 +224,7 @@ export class FileStorageService {
     UuidValidator.validate(id, 'file ID');
 
     const file = await this.prisma.fileStorage.findUnique({
-      where: { id }
+      where: { id },
     });
 
     if (!file) {
@@ -233,7 +233,7 @@ export class FileStorageService {
 
     // Delete from database
     await this.prisma.fileStorage.delete({
-      where: { id }
+      where: { id },
     });
 
     // TODO: Delete from Supabase Storage (optional)
@@ -246,10 +246,10 @@ export class FileStorageService {
 
     const files = await this.prisma.fileStorage.findMany({
       where: { course_id: courseId },
-      orderBy: { uploaded_at: 'desc' }
+      orderBy: { uploaded_at: 'desc' },
     });
 
-    return files.map(file => ({
+    return files.map((file) => ({
       id: file.id,
       filename: file.filename,
       file_type: file.file_type,
@@ -260,7 +260,7 @@ export class FileStorageService {
       uploaded_at: file.uploaded_at,
       course_id: file.course_id,
       lesson_id: file.lesson_id,
-      description: file.description
+      description: file.description,
     }));
   }
 
@@ -270,10 +270,10 @@ export class FileStorageService {
 
     const files = await this.prisma.fileStorage.findMany({
       where: { lesson_id: lessonId },
-      orderBy: { uploaded_at: 'desc' }
+      orderBy: { uploaded_at: 'desc' },
     });
 
-    return files.map(file => ({
+    return files.map((file) => ({
       id: file.id,
       filename: file.filename,
       file_type: file.file_type,
@@ -284,7 +284,7 @@ export class FileStorageService {
       uploaded_at: file.uploaded_at,
       course_id: file.course_id,
       lesson_id: file.lesson_id,
-      description: file.description
+      description: file.description,
     }));
   }
 }

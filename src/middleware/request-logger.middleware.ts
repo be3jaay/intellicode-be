@@ -25,15 +25,11 @@ export class RequestLoggerMiddleware implements NestMiddleware {
       const responseTime = endTime - startTime;
       const { statusCode } = res;
 
-      middleware.logger.log(
-        `Outgoing ${method} ${originalUrl} - ${statusCode}`,
-        'RequestLogger',
-        {
-          responseTime: `${responseTime}ms`,
-          statusCode,
-          contentLength: res.get('content-length') || 0,
-        },
-      );
+      middleware.logger.log(`Outgoing ${method} ${originalUrl} - ${statusCode}`, 'RequestLogger', {
+        responseTime: `${responseTime}ms`,
+        statusCode,
+        contentLength: res.get('content-length') || 0,
+      });
 
       return originalEnd.call(res, chunk, encoding, cb);
     };

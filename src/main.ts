@@ -42,9 +42,8 @@ async function bootstrap() {
     )
     .build();
 
-    const documentFactory = () =>
-      SwaggerModule.createDocument(app, config);
-    SwaggerModule.setup('api/docs', app, documentFactory);
+  const documentFactory = () => SwaggerModule.createDocument(app, config);
+  SwaggerModule.setup('api/docs', app, documentFactory);
 
   const port = process.env.PORT || 3000;
   await app.listen(port);
@@ -54,8 +53,8 @@ async function bootstrap() {
       whitelist: true,
       forbidNonWhitelisted: true,
       transform: true,
-    })
-  )
+    }),
+  );
 
   console.log(`🚀 Application is running on: http://localhost:${port}`);
   console.log(`📚 Swagger documentation: http://localhost:${port}/api/docs`);

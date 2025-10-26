@@ -15,12 +15,11 @@ export class LocalStrategy extends PassportStrategy(Strategy, 'local') {
   async validate(email: string, password: string): Promise<any> {
     // This will use Supabase auth under the hood
     const result = await this.authService.validateUserCredentials(email, password);
-    
+
     if (!result) {
       throw new UnauthorizedException('Invalid credentials');
     }
-    
+
     return result;
   }
 }
-

@@ -1,4 +1,9 @@
-import { Injectable, NotFoundException, BadRequestException, ForbiddenException } from '@nestjs/common';
+import {
+  Injectable,
+  NotFoundException,
+  BadRequestException,
+  ForbiddenException,
+} from '@nestjs/common';
 import { PrismaService } from '@/core/prisma/prisma.service';
 import { v4 as uuidv4 } from 'uuid';
 import { UuidValidator } from '@/common/utils/uuid.validator';
@@ -38,10 +43,22 @@ export class GradebookService {
     });
 
     if (!course) {
-      throw new NotFoundException('Course not found or you do not have permission to view this gradebook');
+      throw new NotFoundException(
+        'Course not found or you do not have permission to view this gradebook',
+      );
     }
 
-    const { offset = 0, limit = 10, sort_by, sort_order, min_score, max_score, submission_status, section, search } = query;
+    const {
+      offset = 0,
+      limit = 10,
+      sort_by,
+      sort_order,
+      min_score,
+      max_score,
+      submission_status,
+      section,
+      search,
+    } = query;
 
     // Get all enrolled students with filters
     const enrollmentWhere: any = {
@@ -75,6 +92,7 @@ export class GradebookService {
             email: true,
             student_number: true,
             section: true,
+            profile_picture: true,
           },
         },
       },
@@ -96,14 +114,22 @@ export class GradebookService {
 
     for (const enrollment of enrollments) {
       const gradeData = await this.calculateStudentGrades(courseId, enrollment.student_id);
-      
+
       // Apply score filters
       if (min_score !== undefined && gradeData.overall_grade < min_score) continue;
       if (max_score !== undefined && gradeData.overall_grade > max_score) continue;
 
       // Apply submission status filter
-      if (submission_status === SubmissionStatusFilter.ALL_SUBMITTED && gradeData.total_submissions < totalAssignments) continue;
-      if (submission_status === SubmissionStatusFilter.HAS_MISSING && gradeData.total_submissions >= totalAssignments) continue;
+      if (
+        submission_status === SubmissionStatusFilter.ALL_SUBMITTED &&
+        gradeData.total_submissions < totalAssignments
+      )
+        continue;
+      if (
+        submission_status === SubmissionStatusFilter.HAS_MISSING &&
+        gradeData.total_submissions >= totalAssignments
+      )
+        continue;
 
       studentGrades.push({
         student_id: enrollment.student.id,
@@ -111,6 +137,7 @@ export class GradebookService {
         last_name: enrollment.student.last_name,
         email: enrollment.student.email,
         student_number: enrollment.student.student_number,
+        profile_picture: enrollment.student.profile_picture,
         section: enrollment.student.section,
         overall_grade: gradeData.overall_grade,
         assignment_average: gradeData.assignment_average,
@@ -189,7 +216,10 @@ export class GradebookService {
     };
   }
 
-  async calculateStudentOverallGrade(courseId: string, studentId: string): Promise<GradeSummaryDto> {
+  async calculateStudentOverallGrade(
+    courseId: string,
+    studentId: string,
+  ): Promise<GradeSummaryDto> {
     const categoryGrades = await this.calculateCategoryGrades(courseId, studentId);
     const weights = await this.getCourseGradeWeights(courseId);
 
@@ -280,7 +310,7 @@ export class GradebookService {
 
       category.total++;
       const submission = submissionMap.get(assignment.id);
-      
+
       if (submission) {
         category.submitted++;
         category.scoreSum += submission.score;
@@ -289,25 +319,34 @@ export class GradebookService {
     }
 
     return {
-      assignment_average: categories.assignment.maxScoreSum > 0
-        ? Math.round((categories.assignment.scoreSum / categories.assignment.maxScoreSum) * 10000) / 100
-        : 0,
+      assignment_average:
+        categories.assignment.maxScoreSum > 0
+          ? Math.round(
+              (categories.assignment.scoreSum / categories.assignment.maxScoreSum) * 10000,
+            ) / 100
+          : 0,
       assignment_submitted: categories.assignment.submitted,
       assignment_total: categories.assignment.total,
-      activity_average: categories.activity.maxScoreSum > 0
-        ? Math.round((categories.activity.scoreSum / categories.activity.maxScoreSum) * 10000) / 100
-        : 0,
+      activity_average:
+        categories.activity.maxScoreSum > 0
+          ? Math.round((categories.activity.scoreSum / categories.activity.maxScoreSum) * 10000) /
+            100
+          : 0,
       activity_submitted: categories.activity.submitted,
       activity_total: categories.activity.total,
-      exam_average: categories.exam.maxScoreSum > 0
-        ? Math.round((categories.exam.scoreSum / categories.exam.maxScoreSum) * 10000) / 100
-        : 0,
+      exam_average:
+        categories.exam.maxScoreSum > 0
+          ? Math.round((categories.exam.scoreSum / categories.exam.maxScoreSum) * 10000) / 100
+          : 0,
       exam_submitted: categories.exam.submitted,
       exam_total: categories.exam.total,
     };
   }
 
-  async getStudentAssignmentGrades(courseId: string, studentId: string): Promise<AssignmentGradeDto[]> {
+  async getStudentAssignmentGrades(
+    courseId: string,
+    studentId: string,
+  ): Promise<AssignmentGradeDto[]> {
     // Get all modules for the course
     const modules = await this.prisma.module.findMany({
       where: { course_id: courseId },
@@ -335,7 +374,8 @@ export class GradebookService {
 
     return assignments.map((assignment) => {
       const submission = assignment.submissions[0];
-      const isLate = submission && assignment.due_date && submission.submitted_at > assignment.due_date;
+      const isLate =
+        submission && assignment.due_date && submission.submitted_at > assignment.due_date;
 
       return {
         id: assignment.id,
@@ -344,7 +384,9 @@ export class GradebookService {
         module_title: moduleMap.get(assignment.module_id) || 'Unknown',
         max_score: assignment.points,
         score: submission?.score,
-        percentage: submission ? Math.round((submission.score / submission.max_score) * 10000) / 100 : undefined,
+        percentage: submission
+          ? Math.round((submission.score / submission.max_score) * 10000) / 100
+          : undefined,
         due_date: assignment.due_date,
         submitted_at: submission?.submitted_at,
         status: submission ? submission.status : 'not_submitted',
@@ -402,11 +444,14 @@ export class GradebookService {
     });
 
     if (!course) {
-      throw new NotFoundException('Course not found or you do not have permission to update grade weights');
+      throw new NotFoundException(
+        'Course not found or you do not have permission to update grade weights',
+      );
     }
 
     // Validate weights sum to 100
-    const totalWeight = weightsDto.assignment_weight + weightsDto.activity_weight + weightsDto.exam_weight;
+    const totalWeight =
+      weightsDto.assignment_weight + weightsDto.activity_weight + weightsDto.exam_weight;
     if (totalWeight !== 100) {
       throw new BadRequestException(`Grade weights must sum to 100. Current sum: ${totalWeight}`);
     }
@@ -476,7 +521,10 @@ export class GradebookService {
       overallGrade = (overallGrade / totalWeight) * 100;
     }
 
-    const totalSubmissions = categoryGrades.assignment_submitted + categoryGrades.activity_submitted + categoryGrades.exam_submitted;
+    const totalSubmissions =
+      categoryGrades.assignment_submitted +
+      categoryGrades.activity_submitted +
+      categoryGrades.exam_submitted;
 
     // Get last submission date
     const modules = await this.prisma.module.findMany({
@@ -505,7 +553,11 @@ export class GradebookService {
     };
   }
 
-  private sortGradebook(students: InstructorGradebookRowDto[], sortBy?: GradebookSortBy, sortOrder?: SortOrder) {
+  private sortGradebook(
+    students: InstructorGradebookRowDto[],
+    sortBy?: GradebookSortBy,
+    sortOrder?: SortOrder,
+  ) {
     const order = sortOrder === SortOrder.DESC ? -1 : 1;
 
     students.sort((a, b) => {
@@ -568,5 +620,3 @@ export class GradebookService {
     return 'F';
   }
 }
-
-

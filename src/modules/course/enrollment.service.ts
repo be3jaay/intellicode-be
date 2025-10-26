@@ -1,10 +1,16 @@
-import { Injectable, NotFoundException, BadRequestException, forwardRef, Inject } from '@nestjs/common';
+import {
+  Injectable,
+  NotFoundException,
+  BadRequestException,
+  forwardRef,
+  Inject,
+} from '@nestjs/common';
 import { PrismaService } from '@/core/prisma/prisma.service';
-import { 
-  EnrollCourseDto, 
-  EnrollmentResponseDto, 
+import {
+  EnrollCourseDto,
+  EnrollmentResponseDto,
   StudentEnrollmentsQueryDto,
-  PaginatedEnrollmentsResponseDto 
+  PaginatedEnrollmentsResponseDto,
 } from './dto/enrollment.dto';
 import {
   StudentDto,
@@ -13,7 +19,7 @@ import {
   UpdateEnrollmentStatusDto,
   EnrollmentStatusResponseDto,
   CourseProgressDto,
-  EnrollmentStatus
+  EnrollmentStatus,
 } from './dto/student.dto';
 import { v4 as uuidv4 } from 'uuid';
 import { UuidValidator } from '@/common/utils/uuid.validator';
@@ -26,7 +32,6 @@ export class EnrollmentService {
     @Inject(forwardRef(() => GradebookService))
     private readonly gradebookService: GradebookService,
   ) {}
-
 
   async getMyThreeLatestEnrollments(studentId: string): Promise<EnrollmentResponseDto[]> {
     const enrollments = await this.prisma.enrollment.findMany({
@@ -42,20 +47,23 @@ export class EnrollmentService {
                 first_name: true,
                 last_name: true,
                 email: true,
-              }
-            }
-          }
-        }
-      }
+              },
+            },
+          },
+        },
+      },
     });
-    return enrollments
+    return enrollments;
   }
 
-  async enrollInCourse(enrollDto: EnrollCourseDto, studentId: string): Promise<EnrollmentResponseDto> {
+  async enrollInCourse(
+    enrollDto: EnrollCourseDto,
+    studentId: string,
+  ): Promise<EnrollmentResponseDto> {
     const course = await this.prisma.course.findFirst({
-      where: { 
+      where: {
         course_invite_code: enrollDto.course_invite_code,
-        status: 'approved' // Only allow enrollment in approved courses
+        status: 'approved', // Only allow enrollment in approved courses
       },
       include: {
         instructor: {
@@ -64,9 +72,9 @@ export class EnrollmentService {
             first_name: true,
             last_name: true,
             email: true,
-          }
-        }
-      }
+          },
+        },
+      },
     });
 
     if (!course) {
@@ -78,9 +86,9 @@ export class EnrollmentService {
       where: {
         student_id_course_id: {
           student_id: studentId,
-          course_id: course.id
-        }
-      }
+          course_id: course.id,
+        },
+      },
     });
 
     if (existingEnrollment) {
@@ -93,7 +101,7 @@ export class EnrollmentService {
         id: uuidv4(),
         student_id: studentId,
         course_id: course.id,
-        status: 'active'
+        status: 'active',
       },
       include: {
         course: {
@@ -104,11 +112,11 @@ export class EnrollmentService {
                 first_name: true,
                 last_name: true,
                 email: true,
-              }
-            }
-          }
-        }
-      }
+              },
+            },
+          },
+        },
+      },
     });
 
     return {
@@ -123,14 +131,14 @@ export class EnrollmentService {
         description: enrollment.course.description,
         category: enrollment.course.category,
         thumbnail: enrollment.course.thumbnail,
-        instructor: enrollment.course.instructor
-      }
+        instructor: enrollment.course.instructor,
+      },
     };
   }
 
   async getStudentEnrollments(
-    query: StudentEnrollmentsQueryDto, 
-    studentId: string
+    query: StudentEnrollmentsQueryDto,
+    studentId: string,
   ): Promise<PaginatedEnrollmentsResponseDto> {
     const offset = parseInt(query.offset?.toString() || '0', 10);
     const limit = parseInt(query.limit?.toString() || '10', 10);
@@ -156,19 +164,19 @@ export class EnrollmentService {
                 first_name: true,
                 last_name: true,
                 email: true,
-              }
-            }
-          }
-        }
+              },
+            },
+          },
+        },
       },
-      orderBy: { enrolled_at: 'desc' }
+      orderBy: { enrolled_at: 'desc' },
     });
 
     const totalPages = Math.ceil(total / limit);
     const currentPage = Math.floor(offset / limit) + 1;
 
     return {
-      data: enrollments.map(enrollment => ({
+      data: enrollments.map((enrollment) => ({
         id: enrollment.id,
         student_id: enrollment.student_id,
         course_id: enrollment.course_id,
@@ -180,20 +188,20 @@ export class EnrollmentService {
           description: enrollment.course.description,
           category: enrollment.course.category,
           thumbnail: enrollment.course.thumbnail,
-          instructor: enrollment.course.instructor
-        }
+          instructor: enrollment.course.instructor,
+        },
       })),
       total,
       offset,
       limit,
       totalPages,
-      currentPage
+      currentPage,
     };
   }
 
   async getCourseEnrollmentsLength(courseId: string) {
     const enrollments = await this.prisma.enrollment.findMany({
-      where: { course_id: courseId }
+      where: { course_id: courseId },
     });
 
     return enrollments.length;
@@ -202,7 +210,7 @@ export class EnrollmentService {
   async getEnrolledCourseDetails(courseId: string, studentId: string) {
     UuidValidator.validateMultiple({
       'course ID': courseId,
-      'student ID': studentId
+      'student ID': studentId,
     });
 
     // Verify student is enrolled
@@ -210,9 +218,9 @@ export class EnrollmentService {
       where: {
         student_id_course_id: {
           student_id: studentId,
-          course_id: courseId
-        }
-      }
+          course_id: courseId,
+        },
+      },
     });
 
     if (!enrollment) {
@@ -229,7 +237,7 @@ export class EnrollmentService {
             first_name: true,
             last_name: true,
             email: true,
-          }
+          },
         },
         modules: {
           where: { is_published: true },
@@ -241,13 +249,13 @@ export class EnrollmentService {
               include: {
                 activities: {
                   where: { is_published: true },
-                  orderBy: { created_at: 'asc' }
-                }
-              }
-            }
-          }
-        }
-      }
+                  orderBy: { created_at: 'asc' },
+                },
+              },
+            },
+          },
+        },
+      },
     });
 
     if (!course) {
@@ -257,26 +265,32 @@ export class EnrollmentService {
     return course;
   }
 
-  async getCourseStudents(courseId: string, query: CourseStudentsQueryDto, instructorId: string): Promise<PaginatedStudentsResponseDto> {
+  async getCourseStudents(
+    courseId: string,
+    query: CourseStudentsQueryDto,
+    instructorId: string,
+  ): Promise<PaginatedStudentsResponseDto> {
     UuidValidator.validate(courseId, 'course ID');
 
     // Check if course exists and belongs to instructor
     const course = await this.prisma.course.findFirst({
       where: {
         id: courseId,
-        instructor_id: instructorId
-      }
+        instructor_id: instructorId,
+      },
     });
 
     if (!course) {
-      throw new NotFoundException('Course not found or you do not have permission to view students');
+      throw new NotFoundException(
+        'Course not found or you do not have permission to view students',
+      );
     }
 
     const { offset = 0, limit = 10, status, search, section } = query;
 
     // Build where clause
     const where: any = {
-      course_id: courseId
+      course_id: courseId,
     };
 
     if (status) {
@@ -289,15 +303,15 @@ export class EnrollmentService {
           { first_name: { contains: search, mode: 'insensitive' } },
           { last_name: { contains: search, mode: 'insensitive' } },
           { email: { contains: search, mode: 'insensitive' } },
-          { student_number: { contains: search, mode: 'insensitive' } }
-        ]
+          { student_number: { contains: search, mode: 'insensitive' } },
+        ],
       };
     }
 
     if (section) {
       where.student = {
         ...where.student,
-        section: section
+        section: section,
       };
     }
 
@@ -318,35 +332,40 @@ export class EnrollmentService {
             email: true,
             student_number: true,
             section: true,
-            profile_picture: true
-          }
-        }
+            profile_picture: true,
+          },
+        },
       },
-      orderBy: { enrolled_at: 'desc' }
+      orderBy: { enrolled_at: 'desc' },
     });
 
     // Transform to StudentDto with real progress
-    const students = await Promise.all(enrollments.map(async enrollment => {
-      const progressData = await this.calculateActualProgress(enrollment.student_id, courseId);
-      const assignmentsData = await this.getActualAssignmentsData(enrollment.student_id, courseId);
-      const lastActivity = await this.getActualLastActivity(enrollment.student_id, courseId);
+    const students = await Promise.all(
+      enrollments.map(async (enrollment) => {
+        const progressData = await this.calculateActualProgress(enrollment.student_id, courseId);
+        const assignmentsData = await this.getActualAssignmentsData(
+          enrollment.student_id,
+          courseId,
+        );
+        const lastActivity = await this.getActualLastActivity(enrollment.student_id, courseId);
 
-      return {
-        id: enrollment.student.id,
-        first_name: enrollment.student.first_name,
-        last_name: enrollment.student.last_name,
-        email: enrollment.student.email,
-        student_number: enrollment.student.student_number,
-        section: enrollment.student.section,
-        profile_picture: enrollment.student.profile_picture,
-        enrollment_status: enrollment.status as EnrollmentStatus,
-        enrolled_at: enrollment.enrolled_at,
-        progress_percentage: progressData,
-        assignments_completed: assignmentsData.completed,
-        assignments_total: assignmentsData.total,
-        last_activity: lastActivity
-      };
-    }));
+        return {
+          id: enrollment.student.id,
+          first_name: enrollment.student.first_name,
+          last_name: enrollment.student.last_name,
+          email: enrollment.student.email,
+          student_number: enrollment.student.student_number,
+          section: enrollment.student.section,
+          profile_picture: enrollment.student.profile_picture,
+          enrollment_status: enrollment.status as EnrollmentStatus,
+          enrolled_at: enrollment.enrolled_at,
+          progress_percentage: progressData,
+          assignments_completed: assignmentsData.completed,
+          assignments_total: assignmentsData.total,
+          last_activity: lastActivity,
+        };
+      }),
+    );
 
     const totalPages = Math.ceil(total / limit);
     const currentPage = Math.floor(offset / limit) + 1;
@@ -357,15 +376,15 @@ export class EnrollmentService {
       offset,
       limit,
       totalPages,
-      currentPage
+      currentPage,
     };
   }
 
   async updateEnrollmentStatus(
-    courseId: string, 
-    studentId: string, 
-    updateDto: UpdateEnrollmentStatusDto, 
-    instructorId: string
+    courseId: string,
+    studentId: string,
+    updateDto: UpdateEnrollmentStatusDto,
+    instructorId: string,
   ): Promise<EnrollmentStatusResponseDto> {
     UuidValidator.validate(courseId, 'course ID');
     UuidValidator.validate(studentId, 'student ID');
@@ -374,19 +393,21 @@ export class EnrollmentService {
     const course = await this.prisma.course.findFirst({
       where: {
         id: courseId,
-        instructor_id: instructorId
-      }
+        instructor_id: instructorId,
+      },
     });
 
     if (!course) {
-      throw new NotFoundException('Course not found or you do not have permission to manage enrollments');
+      throw new NotFoundException(
+        'Course not found or you do not have permission to manage enrollments',
+      );
     }
 
     // Get current enrollment
     const enrollment = await this.prisma.enrollment.findFirst({
       where: {
         course_id: courseId,
-        student_id: studentId
+        student_id: studentId,
       },
       include: {
         student: {
@@ -394,10 +415,10 @@ export class EnrollmentService {
             id: true,
             first_name: true,
             last_name: true,
-            email: true
-          }
-        }
-      }
+            email: true,
+          },
+        },
+      },
     });
 
     if (!enrollment) {
@@ -409,10 +430,10 @@ export class EnrollmentService {
     // Update enrollment status
     const updatedEnrollment = await this.prisma.enrollment.update({
       where: {
-        id: enrollment.id
+        id: enrollment.id,
       },
       data: {
-        status: updateDto.status
+        status: updateDto.status,
       },
       include: {
         student: {
@@ -420,10 +441,10 @@ export class EnrollmentService {
             id: true,
             first_name: true,
             last_name: true,
-            email: true
-          }
-        }
-      }
+            email: true,
+          },
+        },
+      },
     });
 
     return {
@@ -433,7 +454,7 @@ export class EnrollmentService {
       previous_status: previousStatus,
       new_status: updateDto.status,
       updated_at: new Date(),
-      reason: updateDto.reason
+      reason: updateDto.reason,
     };
   }
 
@@ -444,27 +465,29 @@ export class EnrollmentService {
     const course = await this.prisma.course.findFirst({
       where: {
         id: courseId,
-        instructor_id: instructorId
-      }
+        instructor_id: instructorId,
+      },
     });
 
     if (!course) {
-      throw new NotFoundException('Course not found or you do not have permission to view progress');
+      throw new NotFoundException(
+        'Course not found or you do not have permission to view progress',
+      );
     }
 
     // Get enrollment statistics
     const enrollments = await this.prisma.enrollment.findMany({
       where: { course_id: courseId },
       include: {
-        student: true
-      }
+        student: true,
+      },
     });
 
     const totalStudents = enrollments.length;
-    const activeStudents = enrollments.filter(e => e.status === 'active').length;
-    const completedStudents = enrollments.filter(e => e.status === 'completed').length;
-    const droppedStudents = enrollments.filter(e => e.status === 'dropped').length;
-    const suspendedStudents = enrollments.filter(e => e.status === 'suspended').length;
+    const activeStudents = enrollments.filter((e) => e.status === 'active').length;
+    const completedStudents = enrollments.filter((e) => e.status === 'completed').length;
+    const droppedStudents = enrollments.filter((e) => e.status === 'dropped').length;
+    const suspendedStudents = enrollments.filter((e) => e.status === 'suspended').length;
 
     // Calculate average progress (real)
     let totalProgress = 0;
@@ -487,19 +510,26 @@ export class EnrollmentService {
       suspended_students: suspendedStudents,
       average_progress: Math.round(averageProgress),
       total_assignments: totalAssignments,
-      average_completion_rate: averageCompletionRate
+      average_completion_rate: averageCompletionRate,
     };
   }
 
   // Real methods for progress calculation using gradebook service
   private async calculateActualProgress(studentId: string, courseId: string): Promise<number> {
     try {
-      const categoryGrades = await this.gradebookService.calculateCategoryGrades(courseId, studentId);
-      
+      const categoryGrades = await this.gradebookService.calculateCategoryGrades(
+        courseId,
+        studentId,
+      );
+
       // Calculate overall completion percentage based on submissions
-      const totalAssignments = categoryGrades.assignment_total + categoryGrades.activity_total + categoryGrades.exam_total;
-      const completedAssignments = categoryGrades.assignment_submitted + categoryGrades.activity_submitted + categoryGrades.exam_submitted;
-      
+      const totalAssignments =
+        categoryGrades.assignment_total + categoryGrades.activity_total + categoryGrades.exam_total;
+      const completedAssignments =
+        categoryGrades.assignment_submitted +
+        categoryGrades.activity_submitted +
+        categoryGrades.exam_submitted;
+
       if (totalAssignments === 0) return 0;
       return Math.round((completedAssignments / totalAssignments) * 100);
     } catch (error) {
@@ -507,13 +537,23 @@ export class EnrollmentService {
     }
   }
 
-  private async getActualAssignmentsData(studentId: string, courseId: string): Promise<{ completed: number; total: number }> {
+  private async getActualAssignmentsData(
+    studentId: string,
+    courseId: string,
+  ): Promise<{ completed: number; total: number }> {
     try {
-      const categoryGrades = await this.gradebookService.calculateCategoryGrades(courseId, studentId);
-      
-      const total = categoryGrades.assignment_total + categoryGrades.activity_total + categoryGrades.exam_total;
-      const completed = categoryGrades.assignment_submitted + categoryGrades.activity_submitted + categoryGrades.exam_submitted;
-      
+      const categoryGrades = await this.gradebookService.calculateCategoryGrades(
+        courseId,
+        studentId,
+      );
+
+      const total =
+        categoryGrades.assignment_total + categoryGrades.activity_total + categoryGrades.exam_total;
+      const completed =
+        categoryGrades.assignment_submitted +
+        categoryGrades.activity_submitted +
+        categoryGrades.exam_submitted;
+
       return { completed, total };
     } catch (error) {
       return { completed: 0, total: 0 };

@@ -1,12 +1,21 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { IsString, IsOptional, IsInt, IsEnum, IsUUID, Min, Max, IsDateString } from 'class-validator';
+import {
+  IsString,
+  IsOptional,
+  IsInt,
+  IsEnum,
+  IsUUID,
+  Min,
+  Max,
+  IsDateString,
+} from 'class-validator';
 import { Type } from 'class-transformer';
 
 export enum EnrollmentStatus {
   ACTIVE = 'active',
   COMPLETED = 'completed',
   DROPPED = 'dropped',
-  SUSPENDED = 'suspended'
+  SUSPENDED = 'suspended',
 }
 
 export class StudentDto {
@@ -164,4 +173,3 @@ export class CourseProgressDto {
   @ApiProperty({ description: 'Average completion rate' })
   average_completion_rate: number;
 }
-

@@ -15,7 +15,9 @@ export class UsersService {
     private readonly supabaseService: SupabaseService,
   ) {}
 
-  async getAllUsers(query: UserManagementQueryDto): Promise<{ users: UserProfile[]; total: number; page: number; limit: number }> {
+  async getAllUsers(
+    query: UserManagementQueryDto,
+  ): Promise<{ users: UserProfile[]; total: number; page: number; limit: number }> {
     const { role, search, isSuspended, page = 1, limit = 10 } = query;
     const pageNum = Number(page);
     const limitNum = Number(limit);
@@ -144,10 +146,7 @@ export class UsersService {
     }
   }
 
-  async updateUserRole(
-    userId: string,
-    updateRoleDto: UpdateRoleDto,
-  ): Promise<UserProfile> {
+  async updateUserRole(userId: string, updateRoleDto: UpdateRoleDto): Promise<UserProfile> {
     // Update role in profiles table using Prisma
     try {
       const profile = await this.prisma.user.update({
@@ -232,7 +231,10 @@ export class UsersService {
     }
   }
 
-  async approveInstructor(userId: string, approveInstructorDto: ApproveInstructorDto): Promise<UserProfile> {
+  async approveInstructor(
+    userId: string,
+    approveInstructorDto: ApproveInstructorDto,
+  ): Promise<UserProfile> {
     const { isApproved, reason } = approveInstructorDto;
 
     try {
@@ -276,4 +278,3 @@ export class UsersService {
     return profiles;
   }
 }
-

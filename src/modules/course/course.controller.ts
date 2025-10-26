@@ -1676,13 +1676,13 @@ export class CourseController {
     return await this.certificateService.issueCertificate(courseId, studentId, user.id);
   }
 
-  @Post(':courseId/certificates/:certificateId/revoke')
+  @Post(':courseId/certificates/:studentId/revoke')
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles('teacher')
   @ApiBearerAuth('JWT-auth')
   @ApiOperation({ summary: 'Revoke a previously issued certificate' })
   @ApiParam({ name: 'courseId', description: 'Course ID' })
-  @ApiParam({ name: 'certificateId', description: 'Certificate ID' })
+  @ApiParam({ name: 'studentId', description: 'Student ID' })
   @ApiResponse({
     status: HttpStatus.OK,
     description: 'Certificate revoked successfully',
@@ -1694,12 +1694,14 @@ export class CourseController {
   })
   @ApiResponse({ status: HttpStatus.NOT_FOUND, description: 'Certificate not found' })
   async revokeCertificate(
-    @Param('certificateId') certificateId: string,
+    @Param('courseId') courseId: string,
+    @Param('studentId') studentId: string,
     @Body() revokeCertificateDto: RevokeCertificateDto,
     @CurrentUser() user: RequestUser,
   ) {
     return await this.certificateService.revokeCertificate(
-      certificateId,
+      courseId,
+      studentId,
       user.id,
       revokeCertificateDto,
     );

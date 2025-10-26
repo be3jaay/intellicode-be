@@ -19,4 +19,4 @@ import { LoggerService } from './logger.service';
   ],
   exports: [LoggerService, 'LOGGER_FACTORY'],
 })
-export class LoggerModule {} 
+export class LoggerModule {}

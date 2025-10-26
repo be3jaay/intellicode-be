@@ -113,7 +113,8 @@ export class UsersController {
   @UseInterceptors(FileInterceptor('profilePicture'))
   @ApiOperation({
     summary: 'Update user profile',
-    description: 'Students can only update their own profile. Teachers and admins can update any profile. Supports profile picture upload.',
+    description:
+      'Students can only update their own profile. Teachers and admins can update any profile. Supports profile picture upload.',
   })
   @ApiConsumes('multipart/form-data')
   @ApiBody({
@@ -143,7 +144,13 @@ export class UsersController {
     @UploadedFile() profilePicture: Express.Multer.File,
     @CurrentUser() user: RequestUser,
   ) {
-    return this.usersService.updateProfile(id, updateProfileDto, user.id, user.role, profilePicture);
+    return this.usersService.updateProfile(
+      id,
+      updateProfileDto,
+      user.id,
+      user.role,
+      profilePicture,
+    );
   }
 
   @Put(':id/role')
@@ -197,8 +204,10 @@ export class UsersController {
   @ApiResponse({ status: 200, description: 'Instructor approval status updated successfully' })
   @ApiResponse({ status: 403, description: 'Forbidden - admin only' })
   @ApiResponse({ status: 404, description: 'User not found' })
-  async approveInstructor(@Param('id') id: string, @Body() approveInstructorDto: ApproveInstructorDto) {
+  async approveInstructor(
+    @Param('id') id: string,
+    @Body() approveInstructorDto: ApproveInstructorDto,
+  ) {
     return this.usersService.approveInstructor(id, approveInstructorDto);
   }
 }
-

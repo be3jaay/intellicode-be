@@ -3,9 +3,9 @@ import { IsString, IsNotEmpty, IsOptional, IsEnum, IsNumber, IsInt } from 'class
 import { Type, Transform } from 'class-transformer';
 
 export class EnrollCourseDto {
-  @ApiProperty({ 
+  @ApiProperty({
     description: 'Course invite code provided by instructor',
-    example: 'ABC123XYZ789'
+    example: 'ABC123XYZ789',
   })
   @IsString()
   @IsNotEmpty()

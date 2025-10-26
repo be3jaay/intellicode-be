@@ -21,9 +21,12 @@ export class SupabaseJwtStrategy extends PassportStrategy(Strategy, 'supabase-jw
 
   async validate(req: any, payload: any) {
     const token = ExtractJwt.fromAuthHeaderAsBearerToken()(req);
-    
+
     // Verify token with Supabase Auth
-    const { data: { user }, error } = await this.supabaseService.client.auth.getUser(token);
+    const {
+      data: { user },
+      error,
+    } = await this.supabaseService.client.auth.getUser(token);
 
     if (error || !user) {
       throw new UnauthorizedException('Invalid or expired token');
@@ -49,4 +52,3 @@ export class SupabaseJwtStrategy extends PassportStrategy(Strategy, 'supabase-jw
     };
   }
 }
-

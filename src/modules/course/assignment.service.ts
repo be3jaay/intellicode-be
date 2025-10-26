@@ -1166,9 +1166,6 @@ export class AssignmentService {
           },
         },
       },
-      include: {
-        questions: true,
-      },
     });
 
     if (!assignment) {
@@ -1192,11 +1189,6 @@ export class AssignmentService {
             student_number: true,
           },
         },
-        answers: {
-          include: {
-            question: true,
-          },
-        },
       },
       orderBy: { submitted_at: 'desc' },
     });
@@ -1204,14 +1196,6 @@ export class AssignmentService {
     return submissions.map((submission) => {
       const percentage =
         submission.max_score > 0 ? Math.round((submission.score / submission.max_score) * 100) : 0;
-
-      const questionScores = submission.answers.map((answer) => ({
-        question_id: answer.question_id,
-        question_text: answer.question.question_text,
-        points_earned: answer.points_earned,
-        max_points: answer.question.points,
-        is_correct: answer.is_correct,
-      }));
 
       return {
         student_id: submission.student_id,
@@ -1223,7 +1207,6 @@ export class AssignmentService {
         percentage,
         status: submission.status,
         submitted_at: submission.submitted_at,
-        question_scores: questionScores,
       };
     });
   }

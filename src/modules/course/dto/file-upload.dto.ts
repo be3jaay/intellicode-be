@@ -76,9 +76,9 @@ export class BulkFileUploadDto {
   @IsOptional()
   lesson_id?: string;
 
-  @ApiProperty({ 
-    type: [FileUploadDto], 
-    description: 'Array of file uploads' 
+  @ApiProperty({
+    type: [FileUploadDto],
+    description: 'Array of file uploads',
   })
   @IsArray()
   @ValidateNested({ each: true })

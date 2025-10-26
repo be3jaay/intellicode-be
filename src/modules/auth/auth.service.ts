@@ -14,11 +14,12 @@ export class AuthService {
   ) {}
 
   async signup(signupDto: SignupDto): Promise<AuthResponseDto> {
-    const { email, password, firstName, middleName, lastName, studentNumber, section, userType } = signupDto;
+    const { email, password, firstName, middleName, lastName, studentNumber, section, userType } =
+      signupDto;
 
     // Check if user already exists in database
     const existingUser = await this.prisma.user.findUnique({
-      where: { email }
+      where: { email },
     });
 
     if (existingUser) {
@@ -104,10 +105,11 @@ export class AuthService {
     const { email, password } = loginDto;
 
     // Sign in with Supabase Auth
-    const { data: authData, error: authError } = await this.supabaseService.client.auth.signInWithPassword({
-      email,
-      password,
-    });
+    const { data: authData, error: authError } =
+      await this.supabaseService.client.auth.signInWithPassword({
+        email,
+        password,
+      });
 
     if (authError) {
       throw new UnauthorizedException('Invalid credentials');
@@ -163,7 +165,10 @@ export class AuthService {
 
   async validateUser(token: string): Promise<{ id: string; email: string; role: UserRole }> {
     // Verify JWT token with Supabase
-    const { data: { user }, error } = await this.supabaseService.client.auth.getUser(token);
+    const {
+      data: { user },
+      error,
+    } = await this.supabaseService.client.auth.getUser(token);
 
     if (error || !user) {
       throw new UnauthorizedException('Invalid token');
@@ -187,7 +192,7 @@ export class AuthService {
   }
 
   async validateUserCredentials(email: string, password: string) {
-    const { data: authData, error: authError } = 
+    const { data: authData, error: authError } =
       await this.supabaseService.client.auth.signInWithPassword({
         email,
         password,
@@ -252,4 +257,3 @@ export class AuthService {
     await this.supabaseService.client.auth.signOut();
   }
 }
-
