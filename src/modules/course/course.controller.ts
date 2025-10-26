@@ -1274,6 +1274,46 @@ export class CourseController {
     return await this.assignmentService.manuallyGradeSubmission(gradingDto, user.id);
   }
 
+  @Delete('assignments/:assignmentId/submissions/:studentId/undo')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('teacher', 'student')
+  @ApiBearerAuth('JWT-auth')
+  @ApiOperation({
+    summary:
+      'Undo/reset a submission - Students can undo file_upload submissions, Instructors can undo any',
+  })
+  @ApiParam({ name: 'assignmentId', description: 'Assignment ID' })
+  @ApiParam({
+    name: 'studentId',
+    description: 'Student ID (use your own ID if you are a student)',
+  })
+  @ApiResponse({
+    status: HttpStatus.OK,
+    description: 'Submission reset successfully - can now resubmit',
+  })
+  @ApiResponse({ status: HttpStatus.NOT_FOUND, description: 'Assignment or submission not found' })
+  @ApiResponse({
+    status: HttpStatus.FORBIDDEN,
+    description: 'You do not have permission to undo this submission',
+  })
+  @ApiResponse({
+    status: HttpStatus.BAD_REQUEST,
+    description: 'Cannot undo graded submissions or non-file-upload types (for students)',
+  })
+  async undoStudentSubmission(
+    @Param('assignmentId') assignmentId: string,
+    @Param('studentId') studentId: string,
+    @CurrentUser() user: RequestUser,
+  ) {
+    const isInstructor = user.role === 'teacher';
+    return await this.assignmentService.undoStudentSubmission(
+      assignmentId,
+      studentId,
+      user.id,
+      isInstructor,
+    );
+  }
+
   // Student management endpoints
   @Get(':courseId/students')
   @UseGuards(JwtAuthGuard, RolesGuard)

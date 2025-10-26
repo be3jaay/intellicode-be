@@ -1374,6 +1374,110 @@ export class AssignmentService {
     };
   }
 
+  async undoStudentSubmission(
+    assignmentId: string,
+    studentId: string,
+    userId: string,
+    isInstructor: boolean,
+  ): Promise<{ success: boolean; message: string }> {
+    UuidValidator.validateMultiple({
+      'assignment ID': assignmentId,
+      'student ID': studentId,
+      'user ID': userId,
+    });
+
+    // Check if assignment exists
+    const assignment = await this.prisma.assignment.findFirst({
+      where: {
+        id: assignmentId,
+      },
+      include: {
+        module: {
+          include: {
+            course: true,
+          },
+        },
+      },
+    });
+
+    if (!assignment) {
+      throw new NotFoundException('Assignment not found');
+    }
+
+    // Check permissions
+    if (isInstructor) {
+      // Instructor must own the course
+      if (assignment.module.course.instructor_id !== userId) {
+        throw new ForbiddenException('You do not have permission to manage this assignment');
+      }
+    } else {
+      // Student can only undo their own submission
+      if (studentId !== userId) {
+        throw new ForbiddenException('You can only undo your own submission');
+      }
+
+      // Student can only undo file_upload assignments
+      if (assignment.assignment_subtype !== 'file_upload') {
+        throw new BadRequestException(
+          'Students can only undo file upload submissions. Contact your instructor for other assignment types.',
+        );
+      }
+    }
+
+    // Find the student's submission
+    const submission = await this.prisma.assignmentSubmission.findFirst({
+      where: {
+        assignment_id: assignmentId,
+        student_id: studentId,
+      },
+      include: {
+        answers: true,
+        files: true,
+      },
+    });
+
+    if (!submission) {
+      throw new NotFoundException('No submission found for this student');
+    }
+
+    // Students cannot undo graded submissions
+    if (!isInstructor && submission.status === 'graded') {
+      throw new BadRequestException(
+        'Cannot undo a graded submission. Please contact your instructor.',
+      );
+    }
+
+    // Delete all associated files from storage if any
+    if (submission.files && submission.files.length > 0) {
+      // Delete file records from database
+      await this.prisma.fileStorage.deleteMany({
+        where: { submission_id: submission.id },
+      });
+
+      // Note: You might want to also delete files from Supabase storage here
+      // For now, just deleting the database records
+    }
+
+    // Delete all associated answers if any
+    if (submission.answers && submission.answers.length > 0) {
+      await this.prisma.assignmentAnswer.deleteMany({
+        where: { submission_id: submission.id },
+      });
+    }
+
+    // Delete the submission
+    await this.prisma.assignmentSubmission.delete({
+      where: { id: submission.id },
+    });
+
+    return {
+      success: true,
+      message: isInstructor
+        ? `Submission for student ${studentId} has been successfully reset. The student can now resubmit the assignment.`
+        : 'Your submission has been successfully removed. You can now resubmit the assignment.',
+    };
+  }
+
   private formatAssignmentResponse(
     assignment: any,
     showAnswers: boolean = true,
