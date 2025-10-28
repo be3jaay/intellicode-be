@@ -31,6 +31,7 @@
     "@nestjs/swagger": "^7.1.17",
     "@nestjs/throttler": "^6.4.0",
     "@prisma/client": "^5.8.0",
+    "@sparticuz/chromium": "^141.0.0",
     "@supabase/supabase-js": "^2.39.0",
     "@types/multer": "^2.0.0",
     "class-transformer": "^0.5.1",
@@ -41,6 +42,8 @@
     "passport-jwt": "^4.0.1",
     "passport-local": "^1.0.0",
     "pg": "^8.16.3",
+    "puppeteer": "^24.26.1",
+    "puppeteer-core": "^24.26.1",
     "reflect-metadata": "^0.1.13",
     "rxjs": "^7.8.1",
     "uuid": "^13.0.0"

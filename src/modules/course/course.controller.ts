@@ -14,7 +14,9 @@ import {
   UploadedFile,
   UploadedFiles,
   ForbiddenException,
+  Res,
 } from '@nestjs/common';
+import { Response } from 'express';
 import { FileInterceptor, FilesInterceptor } from '@nestjs/platform-express';
 import { CourseService } from './course.service';
 import {
@@ -122,6 +124,7 @@ import {
   SetPassingGradeDto,
   EligibleStudentsResponseDto,
 } from './dto/certificate.dto';
+import { GenerateCertificateDto } from './dto/generate-certificate.dto';
 import { StudentAnalyticsService } from './student-analytics.service';
 import { StudentDashboardAnalyticsDto } from './dto/student-analytics.dto';
 import { AdminAnalyticsService } from './admin-analytics.service';
@@ -1806,6 +1809,25 @@ export class CourseController {
   })
   async getAllMyCertificates(@CurrentUser() user: RequestUser) {
     return await this.certificateService.getAllStudentCertificates(user.id);
+  }
+
+  @Post('certificates/pdf')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Generate certificate PDF' })
+  @ApiResponse({
+    status: HttpStatus.OK,
+    description: 'Certificate PDF generated successfully',
+  })
+  @ApiResponse({
+    status: HttpStatus.BAD_REQUEST,
+    description: 'Invalid request data',
+  })
+  async generatePdf(@Body() dto: GenerateCertificateDto, @Res() res: Response) {
+    const { buffer, fileName } = await this.certificateService.generatePdf(dto);
+    res.setHeader('content-type', 'application/pdf');
+    res.setHeader('content-disposition', `attachment; filename="${fileName}"`);
+    res.setHeader('cache-control', 'no-store');
+    return res.status(200).send(Buffer.from(buffer));
   }
 
   @Get('analytics/student-dashboard')
