@@ -6,12 +6,14 @@ import { SupabaseJwtStrategy } from './strategies/supabase-jwt.strategy';
 import { LocalStrategy } from './strategies/local.strategy';
 import { PrismaModule } from '@/core/prisma/prisma.module';
 import { SupabaseModule } from '@/core/supabase/supabase.module';
+import { EmailModule } from '../email/email.module';
 
 @Module({
   imports: [
     PassportModule.register({ defaultStrategy: 'supabase-jwt' }),
     PrismaModule,
     SupabaseModule,
+    EmailModule,
   ],
   controllers: [AuthController],
   providers: [AuthService, SupabaseJwtStrategy, LocalStrategy],

@@ -534,25 +534,28 @@ export class CourseController {
   @UseGuards(JwtAuthGuard, RolesGuard)
   @ApiBearerAuth('JWT-auth')
   @Get('admin/pending')
-  @ApiOperation({ summary: 'Get pending courses for approval' })
-  @ApiResponse({ status: HttpStatus.OK, description: 'Pending courses retrieved successfully' })
+  @ApiOperation({ 
+    summary: 'Get all courses with optional status filter',
+    description: 'Fetch all courses or filter by status (waiting_for_approval, approved, rejected). Defaults to all courses if no status is provided.'
+  })
+  @ApiResponse({ status: HttpStatus.OK, description: 'Courses retrieved successfully' })
   @ApiQuery({
     name: 'offset',
     required: false,
     type: Number,
-    description: 'Number of records to skip',
+    description: 'Number of records to skip (default: 0)',
   })
   @ApiQuery({
     name: 'limit',
     required: false,
     type: Number,
-    description: 'Number of records to take',
+    description: 'Number of records to take (default: 10)',
   })
   @ApiQuery({
     name: 'status',
     required: false,
-    type: String,
-    description: 'Filter by course status',
+    enum: ['waiting_for_approval', 'approved', 'rejected'],
+    description: 'Filter by course status (optional - returns all courses if not provided)',
   })
   async getPendingCourses(@Query() query: PendingCoursesQueryDto) {
     return await this.adminService.getPendingCourses(query);
@@ -1421,9 +1424,12 @@ export class CourseController {
   // Student course view endpoints
   @Get(':courseId/student-view')
   @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles('student')
+  @Roles('student', 'admin')
   @ApiBearerAuth('JWT-auth')
-  @ApiOperation({ summary: 'Get complete course view for student with progress tracking' })
+  @ApiOperation({ 
+    summary: 'Get complete course view for student with progress tracking',
+    description: 'Students view their own progress. Admins can view course structure without enrollment.'
+  })
   @ApiParam({ name: 'courseId', description: 'Course ID' })
   @ApiResponse({
     status: HttpStatus.OK,
@@ -1439,6 +1445,12 @@ export class CourseController {
     @Param('courseId') courseId: string,
     @CurrentUser() user: RequestUser,
   ) {
+    // Admins can view course without enrollment check
+    if (user.role === 'admin') {
+      return await this.progressService.getAdminCourseView(courseId);
+    }
+    
+    // Students view their own progress (requires enrollment)
     return await this.progressService.getStudentCourseProgress(user.id, courseId);
   }
 

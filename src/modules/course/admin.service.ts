@@ -15,9 +15,12 @@ export class AdminService {
     // Convert string parameters to numbers
     const offset = parseInt(query.offset?.toString() || '0', 10);
     const limit = parseInt(query.limit?.toString() || '10', 10);
-    const status = query.status || 'waiting_for_approval';
 
-    const where: any = { status };
+    // Build where clause - only add status filter if provided
+    const where: any = {};
+    if (query.status) {
+      where.status = query.status;
+    }
 
     const total = await this.prisma.course.count({ where });
 

@@ -403,6 +403,133 @@ export class ProgressService {
     };
   }
 
+  async getAdminCourseView(courseId: string) {
+    // Validate UUID format
+    UuidValidator.validate(courseId, 'course ID');
+
+    // Get course with all related data (no enrollment check for admin)
+    const course = await this.prisma.course.findUnique({
+      where: { id: courseId },
+      include: {
+        instructor: {
+          select: {
+            id: true,
+            first_name: true,
+            last_name: true,
+            email: true,
+          },
+        },
+        modules: {
+          where: { is_published: true },
+          orderBy: { order_index: 'asc' },
+          include: {
+            lessons: {
+              where: { is_published: true },
+              orderBy: { order_index: 'asc' },
+            },
+            assignments: {
+              where: { is_published: true },
+              orderBy: { created_at: 'asc' },
+            },
+          },
+        },
+      },
+    });
+
+    if (!course) {
+      throw new NotFoundException('Course not found');
+    }
+
+    // Calculate course statistics without student-specific progress
+    let totalLessons = 0;
+    let totalModules = 0;
+    let totalEstimatedDuration = 0;
+
+    const modulesWithStructure = course.modules.map((module) => {
+      const moduleLessons = module.lessons.map((lesson) => {
+        totalLessons++;
+
+        return {
+          id: lesson.id,
+          title: lesson.title,
+          description: lesson.description,
+          content: lesson.content,
+          order_index: lesson.order_index,
+          is_published: lesson.is_published,
+          difficulty: lesson.difficulty,
+          estimated_duration: lesson.estimated_duration,
+          tags: lesson.tags,
+          is_completed: false, // No student progress for admin view
+          is_unlocked: true, // All lessons visible to admin
+          completion_percentage: 0,
+          last_accessed: null,
+          completed_at: null,
+        };
+      });
+
+      const moduleTotalDuration = moduleLessons.reduce(
+        (sum, lesson) => sum + (lesson.estimated_duration || 0),
+        0,
+      );
+
+      totalEstimatedDuration += moduleTotalDuration;
+      totalModules++;
+
+      return {
+        id: module.id,
+        title: module.title,
+        description: module.description,
+        order_index: module.order_index,
+        is_published: module.is_published,
+        lessons: moduleLessons,
+        total_lessons: moduleLessons.length,
+        completed_lessons: 0, // No student progress
+        completion_percentage: 0,
+        total_duration: moduleTotalDuration,
+      };
+    });
+
+    // Process assignments (no submission data for admin view)
+    const assignmentsWithStructure = course.modules.flatMap((module) =>
+      module.assignments.map((assignment) => ({
+        id: assignment.id,
+        title: assignment.title,
+        description: assignment.description,
+        assignment_type: assignment.assignment_type,
+        assignment_subtype: assignment.assignment_subtype,
+        difficulty: assignment.difficulty,
+        points: assignment.points,
+        due_date: assignment.due_date,
+        is_published: assignment.is_published,
+        is_submitted: false, // No student submissions
+        score: null,
+        submitted_at: null,
+      })),
+    );
+
+    return {
+      id: course.id,
+      title: course.title,
+      description: course.description,
+      category: course.category,
+      thumbnail: course.thumbnail,
+      status: course.status,
+      instructor: course.instructor,
+      modules: modulesWithStructure,
+      assignments: assignmentsWithStructure,
+      total_modules: totalModules,
+      completed_modules: 0, // No student progress
+      total_lessons: totalLessons,
+      completed_lessons: 0, // No student progress
+      course_completion_percentage: 0, // No student progress
+      total_estimated_duration: totalEstimatedDuration,
+      enrolled_at: null, // Admin not enrolled
+      last_accessed: null,
+      created_at: course.created_at,
+      updated_at: course.updated_at,
+    };
+  }
+
   private isLessonUnlocked(lesson: any, allLessons: any[], progressMap: Map<string, any>): boolean {
     // First lesson is always unlocked
     if (lesson.order_index === 1) return true;

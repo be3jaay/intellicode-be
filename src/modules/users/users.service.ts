@@ -1,6 +1,7 @@
 import { Injectable, NotFoundException, ForbiddenException } from '@nestjs/common';
 import { PrismaService } from '@/core/prisma/prisma.service';
 import { SupabaseService } from '@/core/supabase/supabase.service';
+import { EmailService } from '@/modules/email/email.service';
 import { UpdateProfileDto } from './dto/update-profile.dto';
 import { UpdateRoleDto } from './dto/update-role.dto';
 import { SuspendUserDto } from './dto/suspend-user.dto';
@@ -13,6 +14,7 @@ export class UsersService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly supabaseService: SupabaseService,
+    private readonly emailService: EmailService,
   ) {}
 
   async getAllUsers(
@@ -245,6 +247,14 @@ export class UsersService {
           approval_reason: reason || null,
         },
       });
+
+      // Send email notification to the instructor
+      await this.emailService.sendInstructorApprovalEmail(
+        user.email,
+        user.first_name,
+        isApproved,
+        reason,
+      );
 
       return user;
     } catch (error) {

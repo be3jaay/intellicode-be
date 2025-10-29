@@ -1,4 +1,4 @@
-import { Controller, Post, Get, Body, UseGuards, Request } from '@nestjs/common';
+import { Controller, Post, Get, Body, UseGuards, Request, HttpCode, HttpStatus } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth } from '@nestjs/swagger';
 import { AuthService } from './auth.service';
 import { SignupDto } from './dto/signup.dto';
@@ -10,6 +10,7 @@ import { LocalAuthGuard } from './guards/local-auth.guard';
 import { CurrentUser } from '@/common/decorators/current-user.decorator';
 import { RequestUser } from './interfaces/user.interface';
 import { Public } from '@/common/decorators/public.decorator';
+import { RequestOtpDto, VerifyOtpDto, ResetPasswordDto, VerifyOtpResponseDto } from './dto/password-reset.dto';
 
 @ApiTags('auth')
 @Controller('auth')
@@ -121,5 +122,83 @@ export class AuthController {
   async logout(@CurrentUser() user: RequestUser) {
     await this.authService.logout(user.id);
     return { message: 'Logged out successfully' };
+  }
+
+  // Password Reset Endpoints
+
+  @Public()
+  @Post('forgot-password/request-otp')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ 
+    summary: 'Request OTP for password reset',
+    description: 'Send a 6-digit OTP code to the user\'s email if it exists in the system. Returns the same message regardless of email existence for security.'
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'OTP request processed (check email if it exists)',
+    schema: {
+      type: 'object',
+      properties: {
+        message: { 
+          type: 'string',
+          example: 'If the email exists in our system, you will receive an OTP code shortly.'
+        }
+      }
+    }
+  })
+  @ApiResponse({
+    status: 429,
+    description: 'Too many requests - rate limit exceeded (max 3 requests per 15 minutes)',
+  })
+  async requestOtp(@Body() requestOtpDto: RequestOtpDto) {
+    return this.authService.requestPasswordResetOtp(requestOtpDto);
+  }
+
+  @Public()
+  @Post('forgot-password/verify-otp')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ 
+    summary: 'Verify OTP code',
+    description: 'Verify the 6-digit OTP code and receive a temporary reset token valid for 15 minutes.'
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'OTP verified successfully - use reset token to change password',
+    type: VerifyOtpResponseDto,
+  })
+  @ApiResponse({
+    status: 400,
+    description: 'Invalid or expired OTP code',
+  })
+  async verifyOtp(@Body() verifyOtpDto: VerifyOtpDto): Promise<VerifyOtpResponseDto> {
+    return this.authService.verifyOtp(verifyOtpDto);
+  }
+
+  @Public()
+  @Post('forgot-password/reset-password')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ 
+    summary: 'Reset password with reset token',
+    description: 'Use the reset token from OTP verification to set a new password. Password must meet complexity requirements.'
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Password reset successful',
+    schema: {
+      type: 'object',
+      properties: {
+        message: { 
+          type: 'string',
+          example: 'Password reset successful. You can now log in with your new password.'
+        }
+      }
+    }
+  })
+  @ApiResponse({
+    status: 400,
+    description: 'Invalid or expired reset token, or password validation failed',
+  })
+  async resetPassword(@Body() resetPasswordDto: ResetPasswordDto) {
+    return this.authService.resetPassword(resetPasswordDto);
   }
 }
