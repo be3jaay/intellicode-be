@@ -201,7 +201,6 @@ model User {
   certificates         CourseCertificate[] @relation("StudentCertificates")
   issued_certificates  CourseCertificate[] @relation("IssuedCertificates")
   revoked_certificates CourseCertificate[] @relation("RevokedCertificates")
-  password_resets      PasswordResetOtp[] @relation("UserPasswordResets")
 
   @@index([email])
   @@index([role])
@@ -534,22 +533,4 @@ model CourseCertificate {
 enum CertificateStatus {
   active
   revoked
-}
-
-model PasswordResetOtp {
-  id         String   @id @db.Uuid
-  user_id    String   @db.Uuid
-  email      String
-  otp_code   String
-  expires_at DateTime
-  is_used    Boolean  @default(false)
-  created_at DateTime @default(now())
-  
-  user User @relation("UserPasswordResets", fields: [user_id], references: [id], onDelete: Cascade)
-  
-  @@index([email])
-  @@index([otp_code])
-  @@index([expires_at])
-  @@index([user_id])
-  @@map("password_reset_otps")
 }

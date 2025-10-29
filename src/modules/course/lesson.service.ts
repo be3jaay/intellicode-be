@@ -257,6 +257,34 @@ export class LessonService {
     });
   }
 
+  async getLessonById(lessonId: string): Promise<LessonResponseDto> {
+    // Validate UUID
+    UuidValidator.validate(lessonId, 'lesson ID');
+
+    const lesson = await this.prisma.lesson.findUnique({
+      where: { id: lessonId },
+    });
+
+    if (!lesson) {
+      throw new NotFoundException('Lesson not found');
+    }
+
+    return {
+      id: lesson.id,
+      module_id: lesson.module_id,
+      title: lesson.title,
+      description: lesson.description,
+      content: lesson.content,
+      order_index: lesson.order_index,
+      is_published: lesson.is_published,
+      difficulty: lesson.difficulty as LessonDifficulty,
+      estimated_duration: lesson.estimated_duration,
+      tags: lesson.tags,
+      created_at: lesson.created_at,
+      updated_at: lesson.updated_at,
+    };
+  }
+
   async updateLesson(
     lessonId: string,
     updateLessonDto: UpdateLessonDto,

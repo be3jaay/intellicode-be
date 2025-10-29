@@ -205,8 +205,16 @@ export class LessonResponseDto {
     id: string;
     title: string;
     description?: string;
+    course_id?: string;
+    course?: {
+      id: string;
+      title: string;
+    };
   };
 
-  @ApiProperty({ description: 'Activities in this lesson' })
+  @ApiProperty({ description: 'Activities in this lesson', required: false })
   activities?: any[];
+
+  @ApiProperty({ description: 'Files attached to this lesson', required: false })
+  files?: any[];
 }

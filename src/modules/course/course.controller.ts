@@ -492,6 +492,27 @@ export class CourseController {
     return await this.lessonService.getModuleLessons(moduleId, user.id);
   }
 
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth('JWT-auth')
+  @Get('lessons/:lessonId')
+  @ApiOperation({ 
+    summary: 'Get lesson details by ID',
+    description: 'Retrieve complete lesson information including activities, files, module and course details'
+  })
+  @ApiParam({ name: 'lessonId', description: 'Lesson ID (UUID)' })
+  @ApiResponse({
+    status: HttpStatus.OK,
+    description: 'Lesson details retrieved successfully',
+    type: LessonResponseDto,
+  })
+  @ApiResponse({
+    status: HttpStatus.NOT_FOUND,
+    description: 'Lesson not found',
+  })
+  async getLessonById(@Param('lessonId') lessonId: string) {
+    return await this.lessonService.getLessonById(lessonId);
+  }
+
   @Roles('teacher')
   @UseGuards(JwtAuthGuard, RolesGuard)
   @ApiBearerAuth('JWT-auth')
