@@ -201,13 +201,31 @@ model User {
   certificates         CourseCertificate[] @relation("StudentCertificates")
   issued_certificates  CourseCertificate[] @relation("IssuedCertificates")
   revoked_certificates CourseCertificate[] @relation("RevokedCertificates")
-
+  password_resets      PasswordResetOtp[] @relation("UserPasswordResets")
   @@index([email])
   @@index([role])
   @@index([student_number])
   @@index([is_suspended])
   @@index([is_approved])
   @@map("users")
+}
+
+model PasswordResetOtp {
+  id         String   @id @db.Uuid
+  user_id    String   @db.Uuid
+  email      String
+  otp_code   String
+  expires_at DateTime
+  is_used    Boolean  @default(false)
+  created_at DateTime @default(now())
+  
+  user User @relation("UserPasswordResets", fields: [user_id], references: [id], onDelete: Cascade)
+  
+  @@index([email])
+  @@index([otp_code])
+  @@index([expires_at])
+  @@index([user_id])
+  @@map("password_reset_otps")
 }
 
 model Course {
@@ -220,7 +238,7 @@ model Course {
   updated_at         DateTime      @updatedAt
   course_invite_code String
   instructor_id      String?       @db.Uuid
-  status             CourseStatus  @default(waiting_for_approval)
+  status             CourseStatus  @default(pending)
   admin_notes        String?
   passing_grade      Float?
   instructor         User?         @relation("InstructorCourses", fields: [instructor_id], references: [id])
@@ -289,6 +307,7 @@ enum CodeSandboxLanguage {
 }
 
 enum CourseStatus {
+  pending
   waiting_for_approval
   approved
   rejected

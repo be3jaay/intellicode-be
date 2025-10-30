@@ -17,7 +17,7 @@ import { SupabaseService } from '@/core/supabase/supabase.service';
 import { v4 as uuidv4 } from 'uuid';
 import { EnrollmentService } from './enrollment.service';
 import { UuidValidator } from '@/common/utils/uuid.validator';
-import { Course, NotificationRelatedType, NotificationType } from '@prisma/client';
+import { Course } from '@prisma/client';
 import { InstructorAnalyticsDto } from './dto/instructor-analytics.dto';
 import { NotificationsService } from '../notifications/notifications.service';
 import { SetPassingGradeDto } from './dto/certificate.dto';
@@ -102,6 +102,61 @@ export class CourseService {
     );
 
     return course;
+  }
+
+  async submitCourseForApproval(courseId: string, instructorId: string) {
+    // Validate UUID formats
+    UuidValidator.validateMultiple({
+      'course ID': courseId,
+      'instructor ID': instructorId,
+    });
+
+    const course = await this.prisma.course.findUnique({ where: { id: courseId } });
+
+    if (!course) {
+      throw new NotFoundException(`Course with ID ${courseId} not found`);
+    }
+
+    // Only the course owner (instructor) may submit for approval
+    if (course.instructor_id !== instructorId) {
+      throw new ForbiddenException('You do not have permission to submit this course for approval');
+    }
+
+    // Only allow transition from 'pending' to 'waiting_for_approval'
+    if (String(course.status) !== 'pending') {
+      throw new BadRequestException(
+        'Only courses with status "pending" can be submitted for approval',
+      );
+    }
+
+    const updated = await this.prisma.course.update({
+      where: { id: courseId },
+      data: {
+        // cast to any to avoid TypeScript enum mismatch before prisma client is regenerated
+        status: 'waiting_for_approval' as any,
+        updated_at: new Date(),
+      },
+      include: {
+        instructor: {
+          select: {
+            id: true,
+            first_name: true,
+            last_name: true,
+            email: true,
+          },
+        },
+      },
+    });
+
+    // Notify admins about the new course pending approval
+    const instructorName = `${updated.instructor.first_name} ${updated.instructor.last_name}`;
+    await this.notificationsService.notifyAdminsPendingCourse(
+      updated.id,
+      updated.title,
+      instructorName,
+    );
+
+    return updated;
   }
 
   async findAll(query: CourseQueryDto): Promise<PaginatedCoursesResponseDto> {

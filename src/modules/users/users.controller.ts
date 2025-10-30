@@ -9,6 +9,7 @@ import {
   Query,
   UseInterceptors,
   UploadedFile,
+  Patch,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import {
@@ -151,6 +152,21 @@ export class UsersController {
       user.role,
       profilePicture,
     );
+  }
+
+  @Patch('me/password')
+  @Roles(UserRole.admin, UserRole.teacher, UserRole.student)
+  @ApiOperation({ summary: 'Change my password (requires current password and new password)' })
+  @ApiResponse({ status: 200, description: 'Password changed successfully' })
+  @ApiResponse({ status: 400, description: 'Invalid current password or validation error' })
+  async changeMyPassword(
+    @Body() body: import('./dto/change-password.dto').ChangePasswordDto,
+    @CurrentUser() user: RequestUser,
+  ) {
+    // body should contain old_password and new_password
+    const { old_password, new_password } =
+      body as import('./dto/change-password.dto').ChangePasswordDto;
+    return this.usersService.changePassword(user.id, old_password, new_password);
   }
 
   @Put(':id/role')

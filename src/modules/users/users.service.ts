@@ -1,4 +1,5 @@
 import { Injectable, NotFoundException, ForbiddenException } from '@nestjs/common';
+import { BadRequestException } from '@nestjs/common';
 import { PrismaService } from '@/core/prisma/prisma.service';
 import { SupabaseService } from '@/core/supabase/supabase.service';
 import { EmailService } from '@/modules/email/email.service';
@@ -16,6 +17,51 @@ export class UsersService {
     private readonly supabaseService: SupabaseService,
     private readonly emailService: EmailService,
   ) {}
+
+  /**
+   * Change password for the authenticated user (internal flow).
+   * Verifies old password and updates to the new password in Supabase Auth.
+   */
+  async changePassword(userId: string, oldPassword: string, newPassword: string) {
+    // Get user profile to obtain email
+    const user = await this.prisma.user.findUnique({ where: { id: userId } });
+    if (!user) {
+      throw new NotFoundException('User not found');
+    }
+
+    // Verify old password by attempting sign in
+    const { data: authData, error: authError } =
+      await this.supabaseService.client.auth.signInWithPassword({
+        email: user.email,
+        password: oldPassword,
+      });
+
+    if (authError || !authData.user) {
+      throw new BadRequestException('Current password is incorrect');
+    }
+
+    // Update password using Supabase Admin API
+    const { error: updateError } = await this.supabaseService.client.auth.admin.updateUserById(
+      userId,
+      {
+        password: newPassword,
+      },
+    );
+
+    if (updateError) {
+      throw new BadRequestException(`Failed to update password: ${updateError.message}`);
+    }
+
+    // Optionally send confirmation email
+    try {
+      await this.emailService.sendPasswordResetConfirmation(user.email, user.first_name);
+    } catch (e) {
+      // Log but do not fail the request
+      console.error('Failed to send password change confirmation email:', e.message || e);
+    }
+
+    return { message: 'Password changed successfully' };
+  }
 
   async getAllUsers(
     query: UserManagementQueryDto,

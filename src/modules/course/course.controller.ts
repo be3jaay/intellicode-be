@@ -198,6 +198,17 @@ export class CourseController {
     return await this.courseService.createCourse(createCourseDto, user.id, thumbnailFile);
   }
 
+  @Roles('teacher')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @ApiBearerAuth('JWT-auth')
+  @Patch(':id/submit')
+  @ApiOperation({ summary: 'Submit a course for admin approval' })
+  @ApiParam({ name: 'id', description: 'Course ID' })
+  @ApiResponse({ status: HttpStatus.OK, description: 'Course submitted for approval' })
+  async submitCourseForApproval(@Param('id') id: string, @CurrentUser() user: RequestUser) {
+    return await this.courseService.submitCourseForApproval(id, user.id);
+  }
+
   @Get()
   @ApiOperation({ summary: 'Get all courses with pagination' })
   @ApiResponse({
@@ -495,9 +506,10 @@ export class CourseController {
   @UseGuards(JwtAuthGuard)
   @ApiBearerAuth('JWT-auth')
   @Get('lessons/:lessonId')
-  @ApiOperation({ 
+  @ApiOperation({
     summary: 'Get lesson details by ID',
-    description: 'Retrieve complete lesson information including activities, files, module and course details'
+    description:
+      'Retrieve complete lesson information including activities, files, module and course details',
   })
   @ApiParam({ name: 'lessonId', description: 'Lesson ID (UUID)' })
   @ApiResponse({
@@ -555,9 +567,10 @@ export class CourseController {
   @UseGuards(JwtAuthGuard, RolesGuard)
   @ApiBearerAuth('JWT-auth')
   @Get('admin/pending')
-  @ApiOperation({ 
+  @ApiOperation({
     summary: 'Get all courses with optional status filter',
-    description: 'Fetch all courses or filter by status (waiting_for_approval, approved, rejected). Defaults to all courses if no status is provided.'
+    description:
+      'Fetch all courses or filter by status (waiting_for_approval, approved, rejected). Defaults to all courses if no status is provided.',
   })
   @ApiResponse({ status: HttpStatus.OK, description: 'Courses retrieved successfully' })
   @ApiQuery({
@@ -1447,9 +1460,10 @@ export class CourseController {
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles('student', 'admin')
   @ApiBearerAuth('JWT-auth')
-  @ApiOperation({ 
+  @ApiOperation({
     summary: 'Get complete course view for student with progress tracking',
-    description: 'Students view their own progress. Admins can view course structure without enrollment.'
+    description:
+      'Students view their own progress. Admins can view course structure without enrollment.',
   })
   @ApiParam({ name: 'courseId', description: 'Course ID' })
   @ApiResponse({
@@ -1470,7 +1484,7 @@ export class CourseController {
     if (user.role === 'admin') {
       return await this.progressService.getAdminCourseView(courseId);
     }
-    
+
     // Students view their own progress (requires enrollment)
     return await this.progressService.getStudentCourseProgress(user.id, courseId);
   }

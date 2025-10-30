@@ -18,8 +18,12 @@ export class AdminService {
 
     // Build where clause - only add status filter if provided
     const where: any = {};
+    // If status is provided by admin, use it. Otherwise, by default exclude newly-created 'pending' courses
+    // and only return courses that are awaiting approval or already processed by admins.
     if (query.status) {
       where.status = query.status;
+    } else {
+      where.status = { in: ['waiting_for_approval', 'approved', 'rejected'] };
     }
 
     const total = await this.prisma.course.count({ where });
