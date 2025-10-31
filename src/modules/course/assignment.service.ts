@@ -1604,4 +1604,124 @@ export class AssignmentService {
     if (mimeType === 'application/pdf') return 'pdf';
     return 'document';
   }
+
+  async updateAssignmentAttachments(
+    assignmentId: string,
+    instructorId: string,
+    file: Express.Multer.File,
+  ): Promise<AssignmentResponseDto> {
+    // Validate UUID
+    UuidValidator.validate(assignmentId, 'assignment ID');
+
+    // Check if assignment exists and belongs to instructor
+    const assignment = await this.prisma.assignment.findFirst({
+      where: {
+        id: assignmentId,
+        module: {
+          course: {
+            instructor_id: instructorId,
+          },
+        },
+      },
+      include: {
+        module: {
+          include: {
+            course: true,
+          },
+        },
+        attachments: true,
+      },
+    });
+
+    if (!assignment) {
+      throw new NotFoundException(
+        'Assignment not found or you do not have permission to update it',
+      );
+    }
+
+    // Delete existing attachments from database and storage
+    if (assignment.attachments.length > 0) {
+      // Delete from Supabase storage
+      for (const attachment of assignment.attachments) {
+        try {
+          // Extract bucket and path
+          const bucket = 'assignment-files';
+          if (attachment.storage_path) {
+            const { error } = await this.supabaseService.client.storage
+              .from(bucket)
+              .remove([attachment.storage_path]);
+
+            if (error) {
+              console.error(`Failed to delete file from storage: ${attachment.id}`, error);
+            }
+          }
+        } catch (error) {
+          console.error(`Failed to delete file from storage: ${attachment.id}`, error);
+          // Continue even if storage deletion fails
+        }
+      }
+
+      // Delete from database
+      await this.prisma.fileStorage.deleteMany({
+        where: {
+          assignment_id: assignmentId,
+          submission_id: null, // Only delete assignment attachments, not submission files
+        },
+      });
+    }
+
+    // Upload new file if provided
+    if (file) {
+      const courseId = assignment.module.course_id;
+      const moduleId = assignment.module_id;
+
+      const fileId = uuidv4();
+      const timestamp = Date.now();
+      const randomString = Math.random().toString(36).substring(2, 15);
+      const filename = `${timestamp}-${randomString}.${file.originalname.split('.').pop()}`;
+      const storagePath = `assignments/${assignmentId}/${filename}`;
+
+      // Upload to Supabase using direct upload method
+      const publicUrl = await this.supabaseService.uploadFileDirect(
+        file,
+        'assignment-files',
+        storagePath,
+      );
+
+      // Save file metadata to database
+      await this.prisma.fileStorage.create({
+        data: {
+          id: fileId,
+          filename: filename,
+          original_name: file.originalname,
+          file_type: this.getFileTypeFromMime(file.mimetype),
+          category: 'assignment',
+          mime_type: file.mimetype,
+          size: file.size,
+          public_url: publicUrl,
+          storage_path: storagePath,
+          course_id: courseId,
+          module_id: moduleId,
+          assignment_id: assignmentId,
+        },
+      });
+    }
+
+    // Fetch updated assignment with new attachments
+    const updatedAssignment = await this.prisma.assignment.findUnique({
+      where: { id: assignmentId },
+      include: {
+        questions: {
+          orderBy: { order_index: 'asc' },
+        },
+        attachments: {
+          where: {
+            submission_id: null, // Only get assignment attachments
+          },
+        },
+      },
+    });
+
+    return this.formatAssignmentResponse(updatedAssignment);
+  }
 }

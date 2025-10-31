@@ -1091,6 +1091,47 @@ export class CourseController {
     );
   }
 
+  @Patch('assignments/:assignmentId/attachments')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('teacher')
+  @ApiBearerAuth('JWT-auth')
+  @UseInterceptors(FileInterceptor('file'))
+  @ApiConsumes('multipart/form-data')
+  @ApiOperation({
+    summary: 'Update assignment attachment',
+    description: 'Deletes existing attachment and replaces it with a new one',
+  })
+  @ApiParam({ name: 'assignmentId', description: 'Assignment ID' })
+  @ApiBody({
+    schema: {
+      type: 'object',
+      properties: {
+        file: {
+          type: 'string',
+          format: 'binary',
+          description: 'New attachment file (single file only)',
+        },
+      },
+    },
+  })
+  @ApiResponse({
+    status: HttpStatus.OK,
+    description: 'Assignment attachment updated successfully',
+    type: AssignmentResponseDto,
+  })
+  @ApiResponse({ status: HttpStatus.NOT_FOUND, description: 'Assignment not found' })
+  @ApiResponse({
+    status: HttpStatus.FORBIDDEN,
+    description: 'You do not have permission to update this assignment',
+  })
+  async updateAssignmentAttachments(
+    @Param('assignmentId') assignmentId: string,
+    @UploadedFile() file: Express.Multer.File,
+    @CurrentUser() user: RequestUser,
+  ) {
+    return await this.assignmentService.updateAssignmentAttachments(assignmentId, user.id, file);
+  }
+
   @Delete('assignments/:assignmentId')
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles('teacher')
