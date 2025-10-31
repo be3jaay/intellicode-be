@@ -260,12 +260,11 @@ export class ModuleService {
   }
 
   async deleteModule(moduleId: string, instructorId: string): Promise<void> {
-    // Validate module ID format
-    if (!UuidValidator.validate(moduleId)) {
-      throw new BadRequestException('Invalid module ID format');
-    }
+    UuidValidator.validateMultiple({
+      'module ID': moduleId,
+      'instructor ID': instructorId,
+    });
 
-    // Check if module exists and belongs to instructor's course
     const module = await this.prisma.module.findFirst({
       where: {
         id: moduleId,
@@ -274,6 +273,12 @@ export class ModuleService {
         },
       },
       include: {
+        course: {
+          select: {
+            id: true,
+            instructor_id: true,
+          },
+        },
         _count: {
           select: {
             lessons: true,
@@ -284,8 +289,25 @@ export class ModuleService {
     });
 
     if (!module) {
+      // Check if module exists at all
+      const moduleExists = await this.prisma.module.findUnique({
+        where: { id: moduleId },
+        include: {
+          course: {
+            select: {
+              instructor_id: true,
+            },
+          },
+        },
+      });
+
+      if (!moduleExists) {
+        throw new NotFoundException('Module not found');
+      }
+
+      // Module exists but user doesn't have permission
       throw new NotFoundException(
-        'Module not found or you do not have permission to delete this module',
+        'You do not have permission to delete this module. Only the course instructor can delete modules.',
       );
     }
 

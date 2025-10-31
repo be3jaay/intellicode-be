@@ -507,35 +507,70 @@ export class AssignmentService {
     if (processedData.starterCode !== undefined)
       updateData.starter_code = processedData.starterCode;
 
+    // Handle questions update separately to avoid foreign key issues
+    let assignment;
     if (processedData.questions) {
-      updateData.questions = {
-        deleteMany: {},
-        create: processedData.questions.map((question, index) => ({
-          id: uuidv4(),
-          question_text: question.question,
-          question_type: question.type,
-          points: question.points,
-          order_index: index + 1,
-          correct_answer: question.correct_answer,
-          correct_answers: question.correct_answers || [],
-          options: question.options || [],
-          explanation: question.explanation,
-          case_sensitive: question.case_sensitive || false,
-          is_true: question.is_true,
-        })),
-      };
-    }
+      // Get all existing question IDs for this assignment
+      const existingQuestions = await this.prisma.assignmentQuestion.findMany({
+        where: { assignment_id: assignmentId },
+        select: { id: true },
+      });
 
-    const assignment = await this.prisma.assignment.update({
-      where: { id: assignmentId },
-      data: updateData,
-      include: {
-        questions: {
-          orderBy: { order_index: 'asc' },
+      const questionIds = existingQuestions.map((q) => q.id);
+
+      // First, delete all answers related to these questions
+      if (questionIds.length > 0) {
+        await this.prisma.assignmentAnswer.deleteMany({
+          where: { question_id: { in: questionIds } },
+        });
+      }
+
+      // Then, delete all existing questions
+      await this.prisma.assignmentQuestion.deleteMany({
+        where: { assignment_id: assignmentId },
+      });
+
+      // Finally, update assignment and create new questions
+      assignment = await this.prisma.assignment.update({
+        where: { id: assignmentId },
+        data: {
+          ...updateData,
+          questions: {
+            create: processedData.questions.map((question, index) => ({
+              id: uuidv4(),
+              question_text: question.question,
+              question_type: question.type,
+              points: question.points,
+              order_index: index + 1,
+              correct_answer: question.correct_answer,
+              correct_answers: question.correct_answers || [],
+              options: question.options || [],
+              explanation: question.explanation,
+              case_sensitive: question.case_sensitive || false,
+              is_true: question.is_true,
+            })),
+          },
         },
-        attachments: true,
-      },
-    });
+        include: {
+          questions: {
+            orderBy: { order_index: 'asc' },
+          },
+          attachments: true,
+        },
+      });
+    } else {
+      // Update assignment without touching questions
+      assignment = await this.prisma.assignment.update({
+        where: { id: assignmentId },
+        data: updateData,
+        include: {
+          questions: {
+            orderBy: { order_index: 'asc' },
+          },
+          attachments: true,
+        },
+      });
+    }
 
     // Send notifications to enrolled students if assignment is being published for the first time
     if (wasUnpublished && isBeingPublished) {
