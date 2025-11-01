@@ -5,7 +5,12 @@ import { SignupDto } from './dto/signup.dto';
 import { LoginDto } from './dto/login.dto';
 import { AuthResponseDto } from './dto/auth-response.dto';
 import { UserRole, UserProfile } from './interfaces/user.interface';
-import { RequestOtpDto, VerifyOtpDto, ResetPasswordDto, VerifyOtpResponseDto } from './dto/password-reset.dto';
+import {
+  RequestOtpDto,
+  VerifyOtpDto,
+  ResetPasswordDto,
+  VerifyOtpResponseDto,
+} from './dto/password-reset.dto';
 import { EmailService } from '../email/email.service';
 import { v4 as uuidv4 } from 'uuid';
 import * as crypto from 'crypto';
@@ -273,7 +278,8 @@ export class AuthService {
     });
 
     // Always return the same message to prevent email enumeration
-    const genericMessage = 'If the email exists in our system, you will receive an OTP code shortly.';
+    const genericMessage =
+      'If the email exists in our system, you will receive an OTP code shortly.';
 
     if (!user) {
       // Return success message even if user doesn't exist (security best practice)
@@ -325,7 +331,7 @@ export class AuthService {
     });
 
     // Send OTP email
-    // await this.emailService.sendOtpEmail(email, otpCode, user.first_name);
+    await this.emailService.sendOtpEmail(email, otpCode, user.first_name);
 
     return { message: genericMessage };
   }

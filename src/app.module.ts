@@ -7,7 +7,6 @@ import { SupabaseExceptionFilter } from './common/filters/supabase-exception.fil
 import { ResponseInterceptor } from './common/interceptors/response.interceptor';
 import { LoggerModule } from './utils/logger/logger.module';
 import { ThrottlerModule } from '@nestjs/throttler';
-import { RateLimitMiddleware } from './middleware/rate-limit.middleware';
 import { CorsMiddleware } from './middleware/cors.middleware';
 import { RequestLoggerMiddleware } from './middleware/request-logger.middleware';
 import { SecurityHeadersMiddleware } from './middleware';
@@ -61,12 +60,7 @@ import { NotificationsModule } from './modules/notifications/notifications.modul
 export class AppModule implements NestModule {
   configure(consumer: MiddlewareConsumer) {
     consumer
-      .apply(
-        CorsMiddleware,
-        SecurityHeadersMiddleware,
-        RateLimitMiddleware,
-        RequestLoggerMiddleware,
-      )
+      .apply(CorsMiddleware, SecurityHeadersMiddleware, RequestLoggerMiddleware)
       .forRoutes('*');
   }
 }
