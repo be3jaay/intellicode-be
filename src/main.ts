@@ -58,6 +58,8 @@ async function bootstrap() {
 
   console.log(`🚀 Application is running on: http://localhost:${port}`);
   console.log(`📚 Swagger documentation: http://localhost:${port}/api/docs`);
+  console.log(`🌍 NODE_ENV: ${process.env.NODE_ENV || 'not set'}`);
+  console.log(`🔧 Environment: ${process.env.NODE_ENV === 'production' ? 'PRODUCTION' : 'DEVELOPMENT'}`);
 }
 
 bootstrap();
