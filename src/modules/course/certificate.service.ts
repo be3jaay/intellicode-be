@@ -852,30 +852,47 @@ export class CertificateService {
   }
 
   private async renderWithPuppeteer(html: string): Promise<Uint8Array> {
-    const isProduction = process.env.NODE_ENV === 'development';
+    // Simple detection: if not running on localhost, use Chromium
+    const isLocalhost = process.env.HOSTNAME === 'localhost' || 
+                        process.env.HOSTNAME?.includes('local') ||
+                        (!process.env.HOSTNAME && process.env.NODE_ENV !== 'production');
+    
+    const useChromium = !isLocalhost;
 
     // Debug logging
-    console.log('[Puppeteer] NODE_ENV:', process.env.NODE_ENV);
-    console.log('[Puppeteer] isProduction:', isProduction);
-    console.log('[Puppeteer] Using:', isProduction ? '@sparticuz/chromium' : 'puppeteer');
+    console.log('[Puppeteer] Environment Detection:');
+    console.log('  - HOSTNAME:', process.env.HOSTNAME || 'not set');
+    console.log('  - NODE_ENV:', process.env.NODE_ENV || 'not set');
+    console.log('  - isLocalhost:', isLocalhost);
+    console.log('  - useChromium:', useChromium);
+    console.log('[Puppeteer] Using:', useChromium ? '@sparticuz/chromium' : 'puppeteer');
 
-    if (isProduction) {
+    if (useChromium) {
       try {
-        // Use @sparticuz/chromium for all production environments (Railway, Digital Ocean, etc.)
+        // Use @sparticuz/chromium for all deployed/cloud environments
         console.log('[Puppeteer] Loading @sparticuz/chromium...');
-        const { default: Chromium } = await import('@sparticuz/chromium');
+        
+        // Import chromium - it's an ES module
+        const chromium = await import('@sparticuz/chromium');
+        console.log('[Puppeteer] Chromium module keys:', Object.keys(chromium));
+        
+        // Get the default export or the module itself
+        const Chromium = chromium.default || chromium;
+        console.log('[Puppeteer] Chromium object type:', typeof Chromium);
+        console.log('[Puppeteer] Has executablePath?', 'executablePath' in Chromium);
+        
         const puppeteer = await import('puppeteer-core');
-        console.log('[Puppeteer] Loaded successfully');
+        console.log('[Puppeteer] @sparticuz/chromium loaded successfully');
 
         console.log('[Puppeteer] Getting executable path...');
-        const executablePath = await Chromium.executablePath();
+        const executablePath = await (Chromium as any).executablePath();
         console.log('[Puppeteer] Executable path:', executablePath);
 
         console.log('[Puppeteer] Launching browser...');
         const browser = await puppeteer.launch({
           headless: 'shell',
           args: [
-            ...Chromium.args,
+            ...(Chromium as any).args,
             '--no-sandbox',
             '--disable-setuid-sandbox',
             '--disable-dev-shm-usage',
@@ -896,6 +913,7 @@ export class CertificateService {
         }
       } catch (error) {
         console.error('[Puppeteer] Error with @sparticuz/chromium:', error);
+        console.error('[Puppeteer] Error stack:', error.stack);
         throw new BadRequestException(
           `Failed to generate PDF with Chromium: ${error.message}. Please ensure @sparticuz/chromium is installed.`,
         );
