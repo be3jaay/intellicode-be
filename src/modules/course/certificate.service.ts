@@ -685,7 +685,9 @@ export class CertificateService {
     };
   }
 
-  async generatePdf(dto: GenerateCertificateDto): Promise<{ buffer: Uint8Array; fileName: string }> {
+  async generatePdf(
+    dto: GenerateCertificateDto,
+  ): Promise<{ buffer: Uint8Array; fileName: string }> {
     const normalized = this.normalizeCertificateData({
       studentName: dto.studentName,
       courseName: dto.courseName,
@@ -849,15 +851,14 @@ export class CertificateService {
       .replaceAll("'", '&#039;');
   }
 
-
   private async renderWithPuppeteer(html: string): Promise<Uint8Array> {
-    const isProduction = process.env.NODE_ENV === 'production';
-    
+    const isProduction = process.env.NODE_ENV === 'development';
+
     // Debug logging
     console.log('[Puppeteer] NODE_ENV:', process.env.NODE_ENV);
     console.log('[Puppeteer] isProduction:', isProduction);
     console.log('[Puppeteer] Using:', isProduction ? '@sparticuz/chromium' : 'puppeteer');
-    
+
     if (isProduction) {
       try {
         // Use @sparticuz/chromium for all production environments (Railway, Digital Ocean, etc.)
@@ -865,11 +866,11 @@ export class CertificateService {
         const { default: Chromium } = await import('@sparticuz/chromium');
         const puppeteer = await import('puppeteer-core');
         console.log('[Puppeteer] Loaded successfully');
-        
+
         console.log('[Puppeteer] Getting executable path...');
         const executablePath = await Chromium.executablePath();
         console.log('[Puppeteer] Executable path:', executablePath);
-        
+
         console.log('[Puppeteer] Launching browser...');
         const browser = await puppeteer.launch({
           headless: 'shell',
@@ -884,9 +885,9 @@ export class CertificateService {
           ],
           executablePath,
         });
-        
+
         console.log('[Puppeteer] Browser launched successfully');
-        
+
         try {
           return await this.renderPdf(browser, html);
         } finally {
@@ -896,7 +897,7 @@ export class CertificateService {
       } catch (error) {
         console.error('[Puppeteer] Error with @sparticuz/chromium:', error);
         throw new BadRequestException(
-          `Failed to generate PDF with Chromium: ${error.message}. Please ensure @sparticuz/chromium is installed.`
+          `Failed to generate PDF with Chromium: ${error.message}. Please ensure @sparticuz/chromium is installed.`,
         );
       }
     } else {
@@ -917,8 +918,12 @@ export class CertificateService {
   private async renderPdf(browser: Browser, html: string): Promise<Uint8Array> {
     const page = await browser.newPage();
     await page.setContent(html, { waitUntil: 'networkidle0' });
-    try { await page.emulateMediaType('print'); } catch {}
-    try { await (await page.evaluateHandle('document.fonts && document.fonts.ready')).jsonValue(); } catch {}
+    try {
+      await page.emulateMediaType('print');
+    } catch {}
+    try {
+      await (await page.evaluateHandle('document.fonts && document.fonts.ready')).jsonValue();
+    } catch {}
     const pdf = await page.pdf({
       format: 'A4',
       landscape: true,
