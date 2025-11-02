@@ -22,7 +22,7 @@ export class EmailService {
     if (!smtpHost || !smtpPort || !smtpUser || !smtpPass) {
       this.logger.warn(
         '⚠️  SMTP not configured. Emails will be logged to console only. ' +
-        'Set SMTP_HOST, SMTP_PORT, SMTP_USER, SMTP_PASS in .env to enable email sending.'
+          'Set SMTP_HOST, SMTP_PORT, SMTP_USER, SMTP_PASS in .env to enable email sending.',
       );
       this.transporter = null;
       return;
@@ -51,7 +51,8 @@ export class EmailService {
   async sendOtpEmail(email: string, otpCode: string, firstName: string): Promise<boolean> {
     try {
       const htmlContent = this.generateOtpEmailTemplate(otpCode, firstName);
-      const fromEmail = this.configService.get<string>('SMTP_FROM') || this.configService.get<string>('SMTP_USER');
+      const fromEmail =
+        this.configService.get<string>('SMTP_FROM') || this.configService.get<string>('SMTP_USER');
 
       // For development or when SMTP is not configured
       if (!this.transporter) {
@@ -70,7 +71,7 @@ export class EmailService {
       });
 
       this.logger.log(`✅ OTP email sent successfully to ${email}`);
-      
+
       // Also log OTP in development for easy testing
       if (process.env.NODE_ENV === 'development') {
         this.logger.debug(`🔑 [DEV] OTP Code for ${email}: ${otpCode}`);
@@ -79,12 +80,12 @@ export class EmailService {
       return true;
     } catch (error) {
       this.logger.error(`❌ Error sending OTP email to ${email}: ${error.message}`);
-      
+
       // Fallback: log to console in development
       if (process.env.NODE_ENV === 'development') {
         this.logger.warn(`⚠️  [FALLBACK] OTP Code for ${email}: ${otpCode}`);
       }
-      
+
       return false;
     }
   }
@@ -92,7 +93,8 @@ export class EmailService {
   async sendPasswordResetConfirmation(email: string, firstName: string): Promise<boolean> {
     try {
       const htmlContent = this.generatePasswordResetConfirmationTemplate(firstName);
-      const fromEmail = this.configService.get<string>('SMTP_FROM') || this.configService.get<string>('SMTP_USER');
+      const fromEmail =
+        this.configService.get<string>('SMTP_FROM') || this.configService.get<string>('SMTP_USER');
 
       // For development or when SMTP is not configured
       if (!this.transporter) {
@@ -108,7 +110,7 @@ export class EmailService {
       });
 
       this.logger.log(`✅ Password reset confirmation sent to ${email}`);
-      
+
       return true;
     } catch (error) {
       this.logger.error(`❌ Error sending confirmation email: ${error.message}`);
@@ -124,12 +126,19 @@ export class EmailService {
   ): Promise<boolean> {
     try {
       const htmlContent = this.generateInstructorApprovalTemplate(firstName, isApproved, reason);
-      const fromEmail = this.configService.get<string>('SMTP_FROM') || this.configService.get<string>('SMTP_USER');
-      const subject = isApproved ? '🎉 Your Instructor Account Has Been Approved!' : '⚠️ Instructor Account Update';
+      const fromEmail =
+        this.configService.get<string>('SMTP_FROM') || this.configService.get<string>('SMTP_USER');
+      const subject = isApproved
+        ? '🎉 Your Instructor Account Has Been Approved!'
+        : '⚠️ Instructor Account Update';
 
       if (!this.transporter) {
-        this.logger.warn(`📧 [DEV MODE] Instructor ${isApproved ? 'approval' : 'rejection'} email would be sent to: ${email}`);
-        this.logger.debug(`Status: ${isApproved ? 'APPROVED' : 'REJECTED'}${reason ? `, Reason: ${reason}` : ''}`);
+        this.logger.warn(
+          `📧 [DEV MODE] Instructor ${isApproved ? 'approval' : 'rejection'} email would be sent to: ${email}`,
+        );
+        this.logger.debug(
+          `Status: ${isApproved ? 'APPROVED' : 'REJECTED'}${reason ? `, Reason: ${reason}` : ''}`,
+        );
         return true;
       }
 
@@ -140,8 +149,10 @@ export class EmailService {
         html: htmlContent,
       });
 
-      this.logger.log(`✅ Instructor ${isApproved ? 'approval' : 'rejection'} email sent to ${email}`);
-      
+      this.logger.log(
+        `✅ Instructor ${isApproved ? 'approval' : 'rejection'} email sent to ${email}`,
+      );
+
       return true;
     } catch (error) {
       this.logger.error(`❌ Error sending instructor approval email: ${error.message}`);
@@ -297,7 +308,11 @@ export class EmailService {
     `;
   }
 
-  private generateInstructorApprovalTemplate(firstName: string, isApproved: boolean, reason?: string): string {
+  private generateInstructorApprovalTemplate(
+    firstName: string,
+    isApproved: boolean,
+    reason?: string,
+  ): string {
     if (isApproved) {
       return `
         <!DOCTYPE html>
@@ -398,7 +413,6 @@ export class EmailService {
                 <li><strong>Create Your First Course:</strong> Start building engaging course content</li>
                 <li><strong>Set Up Your Profile:</strong> Add your profile picture</li>
                 <li><strong>Explore Dashboard:</strong> Familiarize yourself with course management tools</li>
-                <li><strong>Review Guidelines:</strong> Check our instructor best practices</li>
               </ul>
             </div>
             
@@ -407,7 +421,7 @@ export class EmailService {
             <div class="footer">
               <p><strong>Welcome aboard! 🚀</strong></p>
               <p>© 2025 Intellicode Learning Platform. All rights reserved.</p>
-              <p>Need help? Contact us at support@intellicode.com</p>
+              <p>Need help? Contact us at info.intellicode@gmail.com</p>
             </div>
           </div>
         </body>
@@ -481,12 +495,16 @@ export class EmailService {
             
             <p>After careful review, we are unable to approve your instructor application at this time.</p>
             
-            ${reason ? `
+            ${
+              reason
+                ? `
             <div class="reason-box">
               <h3 style="margin-top: 0; color: #6b7280;">Reason:</h3>
               <p style="margin-bottom: 0;">${reason}</p>
             </div>
-            ` : ''}
+            `
+                : ''
+            }
             
             <p>We encourage you to:</p>
             <ul>
@@ -508,4 +526,3 @@ export class EmailService {
     }
   }
 }
-
