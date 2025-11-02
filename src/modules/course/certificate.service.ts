@@ -851,21 +851,34 @@ export class CertificateService {
 
 
   private async renderWithPuppeteer(html: string): Promise<Uint8Array> {
-    const isProdRailway = process.env.NODE_ENV === 'production' && !!process.env.RAILWAY_SERVICE_NAME;
-    if (isProdRailway) {
+    const isProduction = process.env.NODE_ENV === 'production';
+    
+    if (isProduction) {
+      // Use @sparticuz/chromium for all production environments (Railway, Digital Ocean, etc.)
       const { default: Chromium } = await import('@sparticuz/chromium');
       const puppeteer = await import('puppeteer-core');
+      
       const browser = await puppeteer.launch({
         headless: 'shell',
-        args: Chromium.args,
+        args: [
+          ...Chromium.args,
+          '--no-sandbox',
+          '--disable-setuid-sandbox',
+          '--disable-dev-shm-usage',
+          '--disable-accelerated-2d-canvas',
+          '--disable-gpu',
+          '--single-process',
+        ],
         executablePath: await Chromium.executablePath(),
       });
+      
       try {
         return await this.renderPdf(browser, html);
       } finally {
         await browser.close();
       }
     } else {
+      // Local development: use full puppeteer with bundled Chrome
       const puppeteer = await import('puppeteer');
       const browser = await puppeteer.launch({
         headless: true,
