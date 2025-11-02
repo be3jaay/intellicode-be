@@ -9,7 +9,7 @@ import { GradebookService } from './gradebook.service';
 import { ProgressService } from './progress.service';
 import { UuidValidator } from '@/common/utils/uuid.validator';
 import { v4 as uuidv4 } from 'uuid';
-import type { Browser } from 'puppeteer-core';
+import axios from 'axios';
 import {
   CertificateDto,
   CertificateEligibilityDto,
@@ -852,104 +852,84 @@ export class CertificateService {
   }
 
   private async renderWithPuppeteer(html: string): Promise<Uint8Array> {
-    // Simple detection: if not running on localhost, use Chromium
-    const isLocalhost = process.env.HOSTNAME === 'localhost' || 
-                        process.env.HOSTNAME?.includes('local') ||
-                        (!process.env.HOSTNAME && process.env.NODE_ENV !== 'production');
-    
-    const useChromium = !isLocalhost;
+    const apiKey = process.env.PDFSHIFT_API_KEY;
 
-    // Debug logging
-    console.log('[Puppeteer] Environment Detection:');
-    console.log('  - HOSTNAME:', process.env.HOSTNAME || 'not set');
-    console.log('  - NODE_ENV:', process.env.NODE_ENV || 'not set');
-    console.log('  - isLocalhost:', isLocalhost);
-    console.log('  - useChromium:', useChromium);
-    console.log('[Puppeteer] Using:', useChromium ? '@sparticuz/chromium' : 'puppeteer');
-
-    if (useChromium) {
+    // If PDF API key is configured, use PDFShift (works everywhere)
+    if (apiKey) {
+      console.log('[PDF] Generating PDF using PDFShift API...');
+      
       try {
-        // Use @sparticuz/chromium for all deployed/cloud environments
-        console.log('[Puppeteer] Loading @sparticuz/chromium...');
-        
-        // Import chromium - it's an ES module
-        const chromium = await import('@sparticuz/chromium');
-        console.log('[Puppeteer] Chromium module keys:', Object.keys(chromium));
-        
-        // Get the default export or the module itself
-        const Chromium = chromium.default || chromium;
-        console.log('[Puppeteer] Chromium object type:', typeof Chromium);
-        console.log('[Puppeteer] Has executablePath?', 'executablePath' in Chromium);
-        
-        const puppeteer = await import('puppeteer-core');
-        console.log('[Puppeteer] @sparticuz/chromium loaded successfully');
+        const response = await axios.post(
+          'https://api.pdfshift.io/v3/convert/pdf',
+          {
+            source: html,
+            landscape: true,
+            format: 'A4',
+            margin: {
+              top: '0mm',
+              bottom: '0mm',
+              left: '0mm',
+              right: '0mm',
+            },
+            use_print: true,
+          },
+          {
+            auth: {
+              username: 'api',
+              password: apiKey,
+            },
+            responseType: 'arraybuffer',
+            timeout: 30000, // 30 seconds
+          }
+        );
 
-        console.log('[Puppeteer] Getting executable path...');
-        const executablePath = await (Chromium as any).executablePath();
-        console.log('[Puppeteer] Executable path:', executablePath);
-
-        console.log('[Puppeteer] Launching browser...');
-        const browser = await puppeteer.launch({
-          headless: 'shell',
-          args: [
-            ...(Chromium as any).args,
-            '--no-sandbox',
-            '--disable-setuid-sandbox',
-            '--disable-dev-shm-usage',
-            '--disable-accelerated-2d-canvas',
-            '--disable-gpu',
-            '--single-process',
-          ],
-          executablePath,
-        });
-
-        console.log('[Puppeteer] Browser launched successfully');
-
-        try {
-          return await this.renderPdf(browser, html);
-        } finally {
-          await browser.close();
-          console.log('[Puppeteer] Browser closed');
+        console.log('[PDF] PDF generated successfully via PDFShift');
+        return new Uint8Array(response.data);
+      } catch (error: any) {
+        console.error('[PDF] PDFShift API error:', error.message);
+        if (error.response) {
+          console.error('[PDF] PDFShift response:', error.response.status, error.response.data);
         }
-      } catch (error) {
-        console.error('[Puppeteer] Error with @sparticuz/chromium:', error);
-        console.error('[Puppeteer] Error stack:', error.stack);
         throw new BadRequestException(
-          `Failed to generate PDF with Chromium: ${error.message}. Please ensure @sparticuz/chromium is installed.`,
+          `Failed to generate PDF: ${error.message}. Please check PDFSHIFT_API_KEY configuration.`
         );
       }
-    } else {
-      // Local development: use full puppeteer with bundled Chrome
+    }
+
+    // Fallback to local Puppeteer for development (when no API key is set)
+    console.log('[PDF] No PDFSHIFT_API_KEY found, using local Puppeteer...');
+    console.log('[PDF] Note: This only works on local machine with Chrome installed');
+    
+    try {
       const puppeteer = await import('puppeteer');
       const browser = await puppeteer.launch({
         headless: true,
         args: ['--no-sandbox', '--disable-setuid-sandbox'],
       });
-      try {
-        return await this.renderPdf(browser as unknown as Browser, html);
-      } finally {
-        await browser.close();
-      }
-    }
-  }
 
-  private async renderPdf(browser: Browser, html: string): Promise<Uint8Array> {
-    const page = await browser.newPage();
-    await page.setContent(html, { waitUntil: 'networkidle0' });
-    try {
-      await page.emulateMediaType('print');
-    } catch {}
-    try {
-      await (await page.evaluateHandle('document.fonts && document.fonts.ready')).jsonValue();
-    } catch {}
-    const pdf = await page.pdf({
-      format: 'A4',
-      landscape: true,
-      printBackground: true,
-      preferCSSPageSize: true,
-      margin: { top: '0mm', right: '0mm', bottom: '0mm', left: '0mm' },
-    });
-    await page.close();
-    return pdf;
+      const page = await browser.newPage();
+      await page.setContent(html, { waitUntil: 'networkidle0' });
+      
+      try {
+        await page.emulateMediaType('print');
+      } catch {}
+      
+      const pdf = await page.pdf({
+        format: 'A4',
+        landscape: true,
+        printBackground: true,
+        preferCSSPageSize: true,
+        margin: { top: '0mm', right: '0mm', bottom: '0mm', left: '0mm' },
+      });
+
+      await browser.close();
+      console.log('[PDF] PDF generated successfully via local Puppeteer');
+      return pdf;
+    } catch (error: any) {
+      console.error('[PDF] Local Puppeteer error:', error.message);
+      throw new BadRequestException(
+        `Failed to generate PDF locally: ${error.message}. Consider setting PDFSHIFT_API_KEY for production.`
+      );
+    }
   }
 }
