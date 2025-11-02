@@ -263,11 +263,8 @@ export class AuthService {
   }
 
   async logout(userId: string): Promise<void> {
-    // Sign out from Supabase
     await this.supabaseService.client.auth.signOut();
   }
-
-  // Password Reset Methods
 
   async requestPasswordResetOtp(requestOtpDto: RequestOtpDto): Promise<{ message: string }> {
     const { email } = requestOtpDto;

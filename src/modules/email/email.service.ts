@@ -28,7 +28,7 @@ export class EmailService {
       return;
     }
 
-    this.transporter = nodemailer.createTransport({
+    const transportOptions = {
       host: smtpHost,
       port: smtpPort,
       secure: smtpPort === 465, // true for 465, false for other ports
@@ -36,12 +36,39 @@ export class EmailService {
         user: smtpUser,
         pass: smtpPass,
       },
-    });
+      // add a reasonable connection timeout for deployed environments
+      connectionTimeout: 10000,
+    } as any;
+
+    // Log the transporter config (mask sensitive fields) so we can see it in Railway logs
+    try {
+      this.logger.log(
+        'SMTP config: ' +
+          JSON.stringify({
+            host: transportOptions.host,
+            port: transportOptions.port,
+            secure: transportOptions.secure,
+            user: transportOptions.auth.user,
+          }),
+      );
+    } catch (e) {
+      this.logger.warn('Could not stringify SMTP config');
+    }
+
+    this.transporter = nodemailer.createTransport(transportOptions);
+
+    // Attach transport-level error handler to capture network/auth errors
+    this.transporter.on &&
+      this.transporter.on('error', (err) => {
+        this.logger.error(`Transport-level error: ${err?.message}`, err?.stack || err);
+      });
 
     // Verify connection
     this.transporter.verify((error) => {
       if (error) {
+        // Log full error for debugging (Railway logs)
         this.logger.error(`❌ SMTP connection failed: ${error.message}`);
+        this.logger.debug(`SMTP verify error stack: ${error.stack}`);
       } else {
         this.logger.log('✅ SMTP connection established successfully');
       }
@@ -62,6 +89,9 @@ export class EmailService {
         return true;
       }
 
+      // Log attempt to send so we can correlate with Railway logs
+      this.logger.log(`Attempting to send OTP email to ${email} (from=${fromEmail})`);
+
       // Send actual email
       await this.transporter.sendMail({
         from: `"Intellicode" <${fromEmail}>`,
@@ -79,7 +109,8 @@ export class EmailService {
 
       return true;
     } catch (error) {
-      this.logger.error(`❌ Error sending OTP email to ${email}: ${error.message}`);
+      this.logger.error(`❌ Error sending OTP email to ${email}: ${error?.message}`);
+      this.logger.debug(`Error stack: ${error?.stack}`);
 
       // Fallback: log to console in development
       if (process.env.NODE_ENV === 'development') {
@@ -102,6 +133,10 @@ export class EmailService {
         return true;
       }
 
+      this.logger.log(
+        `Attempting to send password reset confirmation to ${email} (from=${fromEmail})`,
+      );
+
       await this.transporter.sendMail({
         from: `"Intellicode" <${fromEmail}>`,
         to: email,
@@ -113,7 +148,8 @@ export class EmailService {
 
       return true;
     } catch (error) {
-      this.logger.error(`❌ Error sending confirmation email: ${error.message}`);
+      this.logger.error(`❌ Error sending confirmation email: ${error?.message}`);
+      this.logger.debug(`Error stack: ${error?.stack}`);
       return false;
     }
   }
@@ -142,6 +178,10 @@ export class EmailService {
         return true;
       }
 
+      this.logger.log(
+        `Attempting to send instructor ${isApproved ? 'approval' : 'rejection'} email to ${email} (from=${fromEmail})`,
+      );
+
       await this.transporter.sendMail({
         from: `"Intellicode" <${fromEmail}>`,
         to: email,
@@ -155,7 +195,8 @@ export class EmailService {
 
       return true;
     } catch (error) {
-      this.logger.error(`❌ Error sending instructor approval email: ${error.message}`);
+      this.logger.error(`❌ Error sending instructor approval email: ${error?.message}`);
+      this.logger.debug(`Error stack: ${error?.stack}`);
       return false;
     }
   }
