@@ -853,29 +853,51 @@ export class CertificateService {
   private async renderWithPuppeteer(html: string): Promise<Uint8Array> {
     const isProduction = process.env.NODE_ENV === 'production';
     
+    // Debug logging
+    console.log('[Puppeteer] NODE_ENV:', process.env.NODE_ENV);
+    console.log('[Puppeteer] isProduction:', isProduction);
+    console.log('[Puppeteer] Using:', isProduction ? '@sparticuz/chromium' : 'puppeteer');
+    
     if (isProduction) {
-      // Use @sparticuz/chromium for all production environments (Railway, Digital Ocean, etc.)
-      const { default: Chromium } = await import('@sparticuz/chromium');
-      const puppeteer = await import('puppeteer-core');
-      
-      const browser = await puppeteer.launch({
-        headless: 'shell',
-        args: [
-          ...Chromium.args,
-          '--no-sandbox',
-          '--disable-setuid-sandbox',
-          '--disable-dev-shm-usage',
-          '--disable-accelerated-2d-canvas',
-          '--disable-gpu',
-          '--single-process',
-        ],
-        executablePath: await Chromium.executablePath(),
-      });
-      
       try {
-        return await this.renderPdf(browser, html);
-      } finally {
-        await browser.close();
+        // Use @sparticuz/chromium for all production environments (Railway, Digital Ocean, etc.)
+        console.log('[Puppeteer] Loading @sparticuz/chromium...');
+        const { default: Chromium } = await import('@sparticuz/chromium');
+        const puppeteer = await import('puppeteer-core');
+        console.log('[Puppeteer] Loaded successfully');
+        
+        console.log('[Puppeteer] Getting executable path...');
+        const executablePath = await Chromium.executablePath();
+        console.log('[Puppeteer] Executable path:', executablePath);
+        
+        console.log('[Puppeteer] Launching browser...');
+        const browser = await puppeteer.launch({
+          headless: 'shell',
+          args: [
+            ...Chromium.args,
+            '--no-sandbox',
+            '--disable-setuid-sandbox',
+            '--disable-dev-shm-usage',
+            '--disable-accelerated-2d-canvas',
+            '--disable-gpu',
+            '--single-process',
+          ],
+          executablePath,
+        });
+        
+        console.log('[Puppeteer] Browser launched successfully');
+        
+        try {
+          return await this.renderPdf(browser, html);
+        } finally {
+          await browser.close();
+          console.log('[Puppeteer] Browser closed');
+        }
+      } catch (error) {
+        console.error('[Puppeteer] Error with @sparticuz/chromium:', error);
+        throw new BadRequestException(
+          `Failed to generate PDF with Chromium: ${error.message}. Please ensure @sparticuz/chromium is installed.`
+        );
       }
     } else {
       // Local development: use full puppeteer with bundled Chrome
