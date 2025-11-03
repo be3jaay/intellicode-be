@@ -487,6 +487,7 @@ export class ModuleService {
       where: whereConditions,
       select: {
         id: true,
+        is_published: true,
         title: true,
         description: true,
         created_at: true,
@@ -525,6 +526,7 @@ export class ModuleService {
     // Format response
     const formattedModules: ModuleListItemDto[] = modules.map((module) => ({
       id: module.id,
+      is_published: module.is_published,
       title: module.title,
       description: module.description,
       created_at: module.created_at,
