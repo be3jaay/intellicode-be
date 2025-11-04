@@ -93,14 +93,6 @@ export class CourseService {
       },
     });
 
-    // Notify admins about the new course pending approval
-    const instructorName = `${course.instructor.first_name} ${course.instructor.last_name}`;
-    await this.notificationsService.notifyAdminsPendingCourse(
-      course.id,
-      course.title,
-      instructorName,
-    );
-
     return course;
   }
 
