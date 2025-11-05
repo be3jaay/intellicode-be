@@ -18,9 +18,9 @@ export class CreateModuleDto {
   @IsNotEmpty()
   course_id: string;
 
-  @ApiProperty({ description: 'Order index', required: false, default: 0 })
+  @ApiProperty({ description: 'Order index', required: false, minimum: 1 })
   @IsInt()
-  @Min(0)
+  @Min(1)
   @IsOptional()
   @Type(() => Number)
   order_index?: number;
@@ -42,9 +42,9 @@ export class UpdateModuleDto {
   @IsOptional()
   description?: string;
 
-  @ApiProperty({ description: 'Order index', required: false })
+  @ApiProperty({ description: 'Order index', required: false, minimum: 1 })
   @IsInt()
-  @Min(0)
+  @Min(1)
   @IsOptional()
   @Type(() => Number)
   order_index?: number;

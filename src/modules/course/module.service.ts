@@ -25,7 +25,7 @@ export class ModuleService {
 
   async getAllModulesByCourseId(
     courseId: string,
-  ): Promise<{ module_id: string; module_title: string }[]> {
+  ): Promise<{ module_id: string; module_title: string; order_index: number }[]> {
     const modules = await this.prisma.module.findMany({
       where: { course_id: courseId },
       orderBy: {
@@ -35,6 +35,7 @@ export class ModuleService {
     return modules.map((module) => ({
       module_id: module.id,
       module_title: module.title,
+      order_index: module.order_index,
     }));
   }
 
@@ -63,31 +64,64 @@ export class ModuleService {
       );
     }
 
-    // Get the next order index if not provided
-    const orderIndex = moduleData.order_index ?? (await this.getNextOrderIndex(course_id));
+    const module = await this.prisma.$transaction(async (tx) => {
+      await this.normalizeOrderIndices(course_id, tx);
 
-    const module = await this.prisma.module.create({
-      data: {
-        id: uuidv4(),
-        course_id,
-        order_index: orderIndex,
-        ...moduleData,
-      },
-      include: {
-        course: {
-          select: {
-            id: true,
-            title: true,
-            description: true,
+      const totalModules = await tx.module.count({
+        where: { course_id },
+      });
+
+      let targetIndex: number;
+      if (moduleData.order_index !== undefined && moduleData.order_index !== null) {
+        targetIndex = Math.max(1, Math.min(moduleData.order_index, totalModules + 1));
+      } else {
+        targetIndex = totalModules + 1;
+      }
+
+      if (targetIndex <= totalModules) {
+        await tx.module.updateMany({
+          where: {
+            course_id,
+            order_index: {
+              gte: targetIndex,
+            },
+          },
+          data: {
+            order_index: {
+              increment: 1,
+            },
+          },
+        });
+      }
+
+      // Create the new module at the target position
+      const newModule = await tx.module.create({
+        data: {
+          id: uuidv4(),
+          course_id,
+          order_index: targetIndex,
+          title: moduleData.title,
+          description: moduleData.description,
+          is_published: moduleData.is_published ?? false,
+        },
+        include: {
+          course: {
+            select: {
+              id: true,
+              title: true,
+              description: true,
+            },
+          },
+          _count: {
+            select: {
+              lessons: true,
+              files: true,
+            },
           },
         },
-        _count: {
-          select: {
-            lessons: true,
-            files: true,
-          },
-        },
-      },
+      });
+
+      return newModule;
     });
 
     return this.formatModuleResponse(module);
@@ -228,12 +262,132 @@ export class ModuleService {
           instructor_id: instructorId,
         },
       },
+      select: {
+        id: true,
+        course_id: true,
+        order_index: true,
+      },
     });
 
     if (!existingModule) {
       throw new NotFoundException(
         'Module not found or you do not have permission to update this module',
       );
+    }
+
+    if (updateModuleDto.order_index !== undefined && updateModuleDto.order_index !== null) {
+      const module = await this.prisma.$transaction(async (tx) => {
+        const courseId = existingModule.course_id;
+        const currentIndex = existingModule.order_index;
+        let newIndex = updateModuleDto.order_index!;
+
+        // Normalize indices first to ensure 1..N contiguity
+        await this.normalizeOrderIndices(courseId, tx);
+
+        const totalModules = await tx.module.count({
+          where: { course_id: courseId },
+        });
+
+        newIndex = Math.max(1, Math.min(newIndex, totalModules));
+
+        if (newIndex === currentIndex) {
+          const updated = await tx.module.update({
+            where: { id: moduleId },
+            data: {
+              title: updateModuleDto.title,
+              description: updateModuleDto.description,
+              is_published: updateModuleDto.is_published,
+            },
+            include: {
+              course: {
+                select: {
+                  id: true,
+                  title: true,
+                  description: true,
+                },
+              },
+              _count: {
+                select: {
+                  lessons: true,
+                  files: true,
+                },
+              },
+            },
+          });
+          return updated;
+        }
+
+        // Shift modules based on direction
+        if (newIndex > currentIndex) {
+          // Moving down: decrement modules between currentIndex+1 and newIndex
+          await tx.module.updateMany({
+            where: {
+              course_id: courseId,
+              order_index: {
+                gte: currentIndex + 1,
+                lte: newIndex,
+              },
+              id: {
+                not: moduleId,
+              },
+            },
+            data: {
+              order_index: {
+                decrement: 1,
+              },
+            },
+          });
+        } else {
+          // Moving up: increment modules between newIndex and currentIndex-1
+          await tx.module.updateMany({
+            where: {
+              course_id: courseId,
+              order_index: {
+                gte: newIndex,
+                lte: currentIndex - 1,
+              },
+              id: {
+                not: moduleId,
+              },
+            },
+            data: {
+              order_index: {
+                increment: 1,
+              },
+            },
+          });
+        }
+
+        // Update the target module with new position and other fields
+        const updated = await tx.module.update({
+          where: { id: moduleId },
+          data: {
+            order_index: newIndex,
+            title: updateModuleDto.title,
+            description: updateModuleDto.description,
+            is_published: updateModuleDto.is_published,
+          },
+          include: {
+            course: {
+              select: {
+                id: true,
+                title: true,
+                description: true,
+              },
+            },
+            _count: {
+              select: {
+                lessons: true,
+                files: true,
+              },
+            },
+          },
+        });
+
+        return updated;
+      });
+
+      return this.formatModuleResponse(module);
     }
 
     const module = await this.prisma.module.update({
@@ -413,6 +567,48 @@ export class ModuleService {
     }
 
     return this.getModules(courseId, query);
+  }
+
+  /**
+   * Normalizes order indices for a course to be contiguous 1..N.
+   * Only updates modules whose order_index actually changes (minimal updates).
+   * @param courseId The course ID
+   * @param transaction Optional Prisma transaction client
+   * @returns The count of modules updated
+   */
+  private async normalizeOrderIndices(
+    courseId: string,
+    transaction?: any,
+  ): Promise<number> {
+    const prismaClient = transaction || this.prisma;
+    
+    const modules = await prismaClient.module.findMany({
+      where: { course_id: courseId },
+      orderBy: [
+        { order_index: 'asc' },
+        { created_at: 'asc' },
+        { id: 'asc' },
+      ],
+      select: {
+        id: true,
+        order_index: true,
+      },
+    });
+
+    let updateCount = 0;
+
+    for (let i = 0; i < modules.length; i++) {
+      const expectedIndex = i + 1; // 1-based indexing
+      if (modules[i].order_index !== expectedIndex) {
+        await prismaClient.module.update({
+          where: { id: modules[i].id },
+          data: { order_index: expectedIndex },
+        });
+        updateCount++;
+      }
+    }
+
+    return updateCount;
   }
 
   private async getNextOrderIndex(courseId: string): Promise<number> {
