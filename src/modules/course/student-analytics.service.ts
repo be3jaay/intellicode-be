@@ -207,6 +207,7 @@ export class StudentAnalyticsService {
         due_date: {
           gte: new Date(), // Only future or today's due dates
         },
+        is_published: true,
         submissions: {
           none: {
             student_id: studentId,
@@ -244,6 +245,7 @@ export class StudentAnalyticsService {
             in: courseIds,
           },
         },
+        is_published: true,
         assignment_type: 'activity',
         due_date: {
           gte: new Date(), // Only future or today's due dates
@@ -285,6 +287,7 @@ export class StudentAnalyticsService {
             in: courseIds,
           },
         },
+        is_published: true,
         assignment_type: 'exam',
         due_date: {
           gte: new Date(), // Only future or today's scheduled exams

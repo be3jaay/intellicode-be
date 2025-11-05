@@ -362,7 +362,11 @@ export class AssignmentService {
         questions: {
           orderBy: { order_index: 'asc' },
         },
-        attachments: true,
+        attachments: {
+          where: {
+            submission_id: null, // Only get instructor-uploaded files, not student submissions
+          },
+        },
       },
       orderBy: { created_at: 'desc' },
     });
@@ -405,7 +409,11 @@ export class AssignmentService {
         questions: {
           orderBy: { order_index: 'asc' },
         },
-        attachments: true,
+        attachments: {
+          where: {
+            submission_id: null,
+          },
+        },
         module: {
           include: {
             course: true,
@@ -421,9 +429,9 @@ export class AssignmentService {
     // Determine if the current user is the instructor
     const isInstructor = userId && assignment.module.course.instructor_id === userId;
 
-    // Determine if the current user already submitted this assignment
+    // Only check submission status for students (not instructors)
     let alreadySubmitted = false;
-    if (userId) {
+    if (userId && !isInstructor) {
       const existingSubmission = await this.prisma.assignmentSubmission.findFirst({
         where: {
           assignment_id: assignment.id,
@@ -614,6 +622,14 @@ export class AssignmentService {
     if (submissionCount > 0) {
       throw new BadRequestException('Cannot delete assignment with existing submissions');
     }
+
+    await this.prisma.assignmentQuestion.deleteMany({
+      where: { assignment_id: assignmentId },
+    });
+
+    await this.prisma.fileStorage.deleteMany({
+      where: { assignment_id: assignmentId },
+    });
 
     await this.prisma.assignment.delete({
       where: { id: assignmentId },
