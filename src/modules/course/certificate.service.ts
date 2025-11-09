@@ -688,12 +688,28 @@ export class CertificateService {
   async generatePdf(
     dto: GenerateCertificateDto,
   ): Promise<{ buffer: Uint8Array; fileName: string }> {
+    console.log('[PDF] Input DTO:', JSON.stringify(dto, null, 2));
+
     const normalized = this.normalizeCertificateData({
       studentName: dto.studentName,
       courseName: dto.courseName,
       studentNumber: dto.studentNumber,
       issuedDate: dto.issuedAt,
+      referenceCode: dto.referenceCode,
     });
+
+    console.log(
+      '[PDF] Normalized data:',
+      JSON.stringify(
+        {
+          ...normalized,
+          issuedDateObj: normalized.issuedDateObj.toISOString(),
+        },
+        null,
+        2,
+      ),
+    );
+
     const html = this.buildCertificateHTML(normalized);
     const pdf = await this.renderWithPuppeteer(html);
     const fileName = `certificate-${normalized.referenceCode}.pdf`;
@@ -721,6 +737,7 @@ export class CertificateService {
     courseName: string;
     studentNumber: string;
     issuedDate?: string;
+    referenceCode?: string;
   }) {
     const issued = input.issuedDate ? new Date(input.issuedDate) : new Date();
     const issuedDateISO = issued.toISOString();
@@ -731,7 +748,7 @@ export class CertificateService {
       issuedDateISO,
       issuedDateObj: issued,
       issuedDateLong: this.formatIssuedDate(issued),
-      referenceCode: this.generateReference(issued, input.studentNumber),
+      referenceCode: input.referenceCode || this.generateReference(issued, input.studentNumber),
     };
   }
 
@@ -762,35 +779,244 @@ export class CertificateService {
         size: A4 landscape;
         margin: 0;
       }
-      * { margin: 0; padding: 0; box-sizing: border-box; }
-      html, body { height: 100%; background: white; }
-      body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-      .cert-page { width: 297mm; height: 210mm; background: #ffffff; position: relative; overflow: hidden; }
-      .cert-container { position: relative; width: 100%; height: 100%; padding: 0; display: flex; align-items: center; justify-content: center; }
-      .cert-card { width: 100%; height: 100%; background: white; border: none; box-shadow: none; position: relative; }
-      .cert-card::before { content: ''; position: absolute; inset: 0 0 55% 0; background: radial-gradient(120% 80% at 100% 0%, #f7ffe9 0%, #ffffff 70%), repeating-linear-gradient(-12deg, rgba(189, 240, 82, 0.10) 0 2px, transparent 2px 10px); -webkit-mask: linear-gradient(to bottom, black 70%, transparent); mask: linear-gradient(to bottom, black 70%, transparent); pointer-events: none; z-index: 0; }
-      .cert-card::after { content: ''; position: absolute; inset: 10mm; border: 2px solid #bdf052; border-radius: 0; pointer-events: none; z-index: 1; }
-      .cert-inner { position: relative; width: 100%; height: 100%; padding: 20mm 30mm; display: flex; flex-direction: column; z-index: 2; }
-      .cert-watermark { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; font-family: 'Montserrat', sans-serif; font-weight: 700; font-size: 90pt; letter-spacing: 8px; color: #bdf052; opacity: 0.05; transform: rotate(-8deg); user-select: none; pointer-events: none; z-index: 0; }
-      .cert-logo-wrapper { position: absolute; top: 20mm; left: 30mm; }
-      .cert-logo-box { display: flex; align-items: center; gap: 8px; }
-      .cert-logo-svg { height: 40px; width: auto; display: block; }
-      .cert-logo-name { display: flex; flex-direction: row; align-items: baseline; line-height: 1.2; }
-      .cert-logo-name-main { font-family: 'Montserrat', sans-serif; font-size:20pt; font-weight: 700; color: #000000; }
-      .cert-logo-name-sub { font-family: 'Montserrat', sans-serif; font-size: 20pt; font-weight: 700; color: #BDF052; margin-left: 2px; }
-      .cert-content { flex: 1; display: flex; flex-direction: column; justify-content: center; align-items: center; text-align: center; padding-top: 15mm; }
-      .cert-award-text { font-family: 'Montserrat', sans-serif; font-size: 11pt; color: #6b7280; font-weight: 400; margin-bottom: 8mm; letter-spacing: 0.5px; }
-      .cert-student-name { font-family: 'Crimson Text', serif; font-size: 48pt; font-weight: 600; color: #111827; margin-bottom: 8mm; line-height: 1.2; }
-      .cert-completion-text { font-family: 'Montserrat', sans-serif; font-size: 11pt; color: #6b7280; font-weight: 400; margin-bottom: 6mm; letter-spacing: 0.5px; }
-      .cert-course-name { font-family: 'Montserrat', sans-serif; font-size: 26pt; font-weight: 700; color: #111827; margin-bottom: 1mm; line-height: 1.3; letter-spacing: 0.5px; }
-      .cert-accent-line { width: 60mm; height: 3px; background: linear-gradient(90deg, #bdf052 0%, #a3d742 100%); border-radius: 2px; margin: 0.5mm auto 0 auto; }
-      .cert-course-subtext { font-family: 'Montserrat', sans-serif; font-size: 11pt; color: #6b7280; font-weight: 400; font-style: italic; }
-      .cert-footer { display: flex; justify-content: space-between; align-items: flex-end; padding-top: 5mm; }
-      .cert-footer-left { text-align: left; }
-      .cert-footer-right { text-align: right; }
-      .cert-footer-label { font-family: 'Montserrat', sans-serif; font-size: 8pt; color: #9ca3af; font-weight: 400; margin-bottom: 1mm; letter-spacing: 0.5px; }
-      .cert-footer-value { font-family: 'Montserrat', sans-serif; font-size: 10pt; color: #374151; font-weight: 600; }
-      @media print { .cert-page { box-shadow: none; } }
+      
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+      }
+      
+      html, body {
+        width: 100%;
+        height: 100%;
+        background: white;
+        overflow: hidden;
+      }
+      
+      body {
+        -webkit-print-color-adjust: exact;
+        print-color-adjust: exact;
+      }
+
+      .cert-page {
+        width: 297mm;
+        height: 210mm;
+        background: #ffffff;
+        position: relative;
+        overflow: hidden;
+        page-break-after: avoid;
+        page-break-inside: avoid;
+      }
+
+      .cert-container {
+        position: relative;
+        width: 100%;
+        height: 100%;
+        padding: 0;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+      }
+
+      .cert-card {
+        width: 100%;
+        height: 100%;
+        background: white;
+        border: none;
+        box-shadow: none;
+        position: relative;
+      }
+
+      .cert-card::before {
+        content: '';
+        position: absolute;
+        inset: 0 0 55% 0;
+        background:
+          radial-gradient(120% 80% at 100% 0%, #f7ffe9 0%, #ffffff 70%),
+          repeating-linear-gradient(-12deg, rgba(189, 240, 82, 0.10) 0 2px, transparent 2px 10px);
+        -webkit-mask: linear-gradient(to bottom, black 70%, transparent);
+                mask: linear-gradient(to bottom, black 70%, transparent);
+        pointer-events: none;
+        z-index: 0;
+      }
+
+      .cert-card::after {
+        content: '';
+        position: absolute;
+        inset: 10mm;
+        border: 2px solid #bdf052;
+        border-radius: 0;
+        pointer-events: none;
+        z-index: 1;
+      }
+
+      .cert-inner {
+        position: relative;
+        width: 100%;
+        height: 100%;
+        padding: 20mm 30mm;
+        display: flex;
+        flex-direction: column;
+        z-index: 2;
+      }
+
+      .cert-watermark {
+        position: absolute;
+        inset: 0;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-family: 'Montserrat', sans-serif;
+        font-weight: 700;
+        font-size: 90pt;
+        letter-spacing: 8px;
+        color: #bdf052;
+        opacity: 0.05;
+        transform: rotate(-8deg);
+        user-select: none;
+        pointer-events: none;
+        z-index: 0;
+      }
+      
+      .cert-logo-wrapper {
+        position: absolute;
+        top: 20mm;
+        left: 30mm;
+      }
+      
+      .cert-logo-box {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+      }
+
+      .cert-logo-svg {
+        height: 40px;
+        width: auto;
+        display: block;
+      }
+      
+      .cert-logo-name {
+        display: flex;
+        flex-direction: row;
+        align-items: baseline;
+        line-height: 1.2;
+      }
+      
+      .cert-logo-name-main {
+        font-family: 'Montserrat', sans-serif;
+        font-size: 20pt;
+        font-weight: 700;
+        color: #000000;
+      }
+      
+      .cert-logo-name-sub {
+        font-family: 'Montserrat', sans-serif;
+        font-size: 20pt;
+        font-weight: 700;
+        color: #BDF052;
+        margin-left: 2px;
+      }
+
+      .cert-content {
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        align-items: center;
+        text-align: center;
+        padding-top: 15mm;
+      }
+      
+      .cert-award-text {
+        font-family: 'Montserrat', sans-serif;
+        font-size: 11pt;
+        color: #6b7280;
+        font-weight: 400;
+        margin-bottom: 8mm;
+        letter-spacing: 0.5px;
+      }
+      
+      .cert-student-name {
+        font-family: 'Crimson Text', serif;
+        font-size: 48pt;
+        font-weight: 600;
+        color: #111827;
+        margin-bottom: 8mm;
+        line-height: 1.2;
+      }
+      
+      .cert-completion-text {
+        font-family: 'Montserrat', sans-serif;
+        font-size: 11pt;
+        color: #6b7280;
+        font-weight: 400;
+        margin-bottom: 6mm;
+        letter-spacing: 0.5px;
+      }
+      
+      .cert-course-name {
+        font-family: 'Montserrat', sans-serif;
+        font-size: 26pt;
+        font-weight: 700;
+        color: #111827;
+        margin-bottom: 1mm;
+        line-height: 1.3;
+        letter-spacing: 0.5px;
+      }
+
+      .cert-accent-line {
+        width: 60mm;
+        height: 3px;
+        background: linear-gradient(90deg, #bdf052 0%, #a3d742 100%);
+        border-radius: 2px;
+        margin: 0.5mm auto 0 auto;
+      }
+      
+      .cert-course-subtext {
+        font-family: 'Montserrat', sans-serif;
+        font-size: 11pt;
+        color: #6b7280;
+        font-weight: 400;
+        font-style: italic;
+      }
+
+      .cert-footer {
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-end;
+        padding-top: 5mm;
+      }
+      
+      .cert-footer-left {
+        text-align: left;
+      }
+      
+      .cert-footer-right {
+        text-align: right;
+      }
+      
+      .cert-footer-label {
+        font-family: 'Montserrat', sans-serif;
+        font-size: 8pt;
+        color: #9ca3af;
+        font-weight: 400;
+        margin-bottom: 1mm;
+        letter-spacing: 0.5px;
+      }
+      
+      .cert-footer-value {
+        font-family: 'Montserrat', sans-serif;
+        font-size: 10pt;
+        color: #374151;
+        font-weight: 600;
+      }
+      
+      @media print {
+        .cert-page {
+          box-shadow: none;
+        }
+      }
     `;
   }
 
@@ -857,7 +1083,7 @@ export class CertificateService {
     // If PDF API key is configured, use PDFShift (works everywhere)
     if (apiKey) {
       console.log('[PDF] Generating PDF using PDFShift API...');
-      
+
       try {
         const response = await axios.post(
           'https://api.pdfshift.io/v3/convert/pdf',
@@ -872,6 +1098,7 @@ export class CertificateService {
               right: '0mm',
             },
             use_print: true,
+            delay: 2000, // Wait 2 seconds for fonts to load
           },
           {
             auth: {
@@ -880,7 +1107,7 @@ export class CertificateService {
             },
             responseType: 'arraybuffer',
             timeout: 30000, // 30 seconds
-          }
+          },
         );
 
         console.log('[PDF] PDF generated successfully via PDFShift');
@@ -891,7 +1118,7 @@ export class CertificateService {
           console.error('[PDF] PDFShift response:', error.response.status, error.response.data);
         }
         throw new BadRequestException(
-          `Failed to generate PDF: ${error.message}. Please check PDFSHIFT_API_KEY configuration.`
+          `Failed to generate PDF: ${error.message}. Please check PDFSHIFT_API_KEY configuration.`,
         );
       }
     }
@@ -899,27 +1126,47 @@ export class CertificateService {
     // Fallback to local Puppeteer for development (when no API key is set)
     console.log('[PDF] No PDFSHIFT_API_KEY found, using local Puppeteer...');
     console.log('[PDF] Note: This only works on local machine with Chrome installed');
-    
+
     try {
       const puppeteer = await import('puppeteer');
       const browser = await puppeteer.launch({
         headless: true,
-        args: ['--no-sandbox', '--disable-setuid-sandbox'],
+        args: [
+          '--no-sandbox',
+          '--disable-setuid-sandbox',
+          '--disable-dev-shm-usage',
+          '--disable-gpu',
+        ],
       });
 
       const page = await browser.newPage();
+
+      // Set viewport to A4 landscape dimensions
+      await page.setViewport({
+        width: 1122, // 297mm in pixels at 96 DPI
+        height: 794, // 210mm in pixels at 96 DPI
+        deviceScaleFactor: 2,
+      });
+
       await page.setContent(html, { waitUntil: 'networkidle0' });
-      
+
+      // Wait for fonts to load
+      await page.evaluateHandle('document.fonts.ready');
+
+      // Additional small delay to ensure everything is rendered
+      await new Promise((resolve) => setTimeout(resolve, 1000));
+
       try {
         await page.emulateMediaType('print');
       } catch {}
-      
+
       const pdf = await page.pdf({
         format: 'A4',
         landscape: true,
         printBackground: true,
         preferCSSPageSize: true,
         margin: { top: '0mm', right: '0mm', bottom: '0mm', left: '0mm' },
+        pageRanges: '1', // Only render first page
       });
 
       await browser.close();
@@ -928,7 +1175,7 @@ export class CertificateService {
     } catch (error: any) {
       console.error('[PDF] Local Puppeteer error:', error.message);
       throw new BadRequestException(
-        `Failed to generate PDF locally: ${error.message}. Consider setting PDFSHIFT_API_KEY for production.`
+        `Failed to generate PDF locally: ${error.message}. Consider setting PDFSHIFT_API_KEY for production.`,
       );
     }
   }
