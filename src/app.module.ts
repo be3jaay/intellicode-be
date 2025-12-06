@@ -14,6 +14,7 @@ import { AuthModule } from './modules/auth/auth.module';
 import { UsersModule } from './modules/users/users.module';
 import { CourseModule } from './modules/course/course.module';
 import { NotificationsModule } from './modules/notifications/notifications.module';
+import { CodeModule } from './modules/code/code.module';
 
 @Module({
   imports: [
@@ -45,6 +46,7 @@ import { NotificationsModule } from './modules/notifications/notifications.modul
     ]),
     CourseModule,
     NotificationsModule,
+    CodeModule,
   ],
   providers: [
     {
