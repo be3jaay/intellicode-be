@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, NotFoundException, ForbiddenException } from '@nestjs/common';
 import { PrismaService } from '@/core/prisma/prisma.service';
 import { UuidValidator } from '@/common/utils/uuid.validator';
 import { v4 as uuidv4 } from 'uuid';
@@ -63,7 +63,47 @@ export class ProgressService {
         });
 
         if (!previousProgress?.is_completed) {
-          throw new NotFoundException('Previous lesson must be completed first');
+          throw new ForbiddenException('Previous lesson must be completed first');
+        }
+      }
+    }
+
+    // Enforce module-level locking: previous module must be complete before entering this one
+    if (lesson.module.order_index > 1) {
+      const previousModule = await this.prisma.module.findFirst({
+        where: {
+          course_id: lesson.module.course_id,
+          order_index: lesson.module.order_index - 1,
+          is_published: true,
+        },
+        include: {
+          lessons: {
+            where: { is_published: true },
+            orderBy: { order_index: 'asc' },
+          },
+        },
+      });
+
+      if (previousModule) {
+        const previousModuleProgress = await this.prisma.lessonProgress.findMany({
+          where: {
+            student_id: studentId,
+            lesson: {
+              module_id: previousModule.id,
+            },
+          },
+        });
+
+        const previousMap = new Map(
+          previousModuleProgress.map((progress) => [progress.lesson_id, progress]),
+        );
+
+        const previousModuleComplete = previousModule.lessons.every((moduleLesson) =>
+          previousMap.get(moduleLesson.id)?.is_completed,
+        );
+
+        if (!previousModuleComplete) {
+          throw new ForbiddenException('Previous module must be completed first');
         }
       }
     }
@@ -112,6 +152,41 @@ export class ProgressService {
     // Get the next lesson to check if it should be unlocked
     const nextLesson = lesson.module.lessons.find((l) => l.order_index === lesson.order_index + 1);
 
+    // Determine if the current module is now complete
+    const moduleProgress = await this.prisma.lessonProgress.findMany({
+      where: {
+        student_id: studentId,
+        lesson: {
+          module_id: lesson.module_id,
+        },
+      },
+    });
+
+    const moduleProgressMap = new Map(moduleProgress.map((progress) => [progress.lesson_id, progress]));
+    moduleProgressMap.set(lessonId, { ...updatedProgress, is_completed: true });
+
+    const moduleComplete = lesson.module.lessons.every((moduleLesson) => {
+      if (moduleLesson.id === lessonId) return true;
+      const progress = moduleProgressMap.get(moduleLesson.id);
+      return progress?.is_completed || false;
+    });
+
+    const nextModule = await this.prisma.module.findFirst({
+      where: {
+        course_id: lesson.module.course_id,
+        order_index: lesson.module.order_index + 1,
+        is_published: true,
+      },
+      orderBy: {
+        order_index: 'asc',
+      },
+      select: {
+        id: true,
+      },
+    });
+
+    const nextModuleUnlocked = moduleComplete && !!nextModule;
+
     return {
       message: 'Lesson completed successfully',
       lesson_id: lessonId,
@@ -119,6 +194,8 @@ export class ProgressService {
       completion_percentage: 100,
       next_lesson_id: nextLesson?.id,
       next_lesson_unlocked: !!nextLesson,
+      next_module_id: nextModule?.id || null,
+      next_module_unlocked: nextModuleUnlocked,
     };
   }
 
@@ -298,12 +375,19 @@ export class ProgressService {
     let completedModules = 0;
     let totalEstimatedDuration = 0;
 
-    const modulesWithProgress = course.modules.map((module) => {
+    let previousModulesComplete = true;
+    const lockedModules: string[] = [];
+
+    const modulesWithProgress = course.modules.map((module, index) => {
+      const modulePrereqId = index > 0 ? course.modules[index - 1].id : null;
+      const moduleUnlocked = index === 0 ? true : previousModulesComplete;
+
       const moduleLessons = module.lessons.map((lesson) => {
         const progress = progressMap.get(lesson.id);
         const isCompleted = progress?.is_completed || false;
         const completionPercentage = progress?.completion_percentage || 0;
-        const isUnlocked = this.isLessonUnlocked(lesson, module.lessons, progressMap);
+        const isUnlocked =
+          moduleUnlocked && this.isLessonUnlocked(lesson, module.lessons, progressMap);
 
         if (isCompleted) completedLessons++;
         totalLessons++;
@@ -338,9 +422,15 @@ export class ProgressService {
       );
 
       totalEstimatedDuration += moduleTotalDuration;
-
       if (moduleCompletionPercentage === 100) completedModules++;
       totalModules++;
+
+      if (!moduleUnlocked) {
+        lockedModules.push(module.id);
+      }
+
+      // Unlock subsequent modules only if all previous modules are completed
+      previousModulesComplete = previousModulesComplete && moduleCompletionPercentage === 100;
 
       return {
         id: module.id,
@@ -348,6 +438,9 @@ export class ProgressService {
         description: module.description,
         order_index: module.order_index,
         is_published: module.is_published,
+        is_unlocked: moduleUnlocked,
+        prerequisite_module_id: modulePrereqId,
+        unlocked_at: moduleUnlocked ? null : null,
         lessons: moduleLessons,
         total_lessons: moduleLessons.length,
         completed_lessons: moduleCompletedLessons,
@@ -380,6 +473,9 @@ export class ProgressService {
     const courseCompletionPercentage =
       totalLessons > 0 ? Math.round((completedLessons / totalLessons) * 100) : 0;
 
+    const lockedModulesCount = lockedModules.length;
+    const nextLockedModuleId = lockedModulesCount > 0 ? lockedModules[0] : null;
+
     return {
       id: course.id,
       title: course.title,
@@ -392,6 +488,8 @@ export class ProgressService {
       assignments: assignmentsWithProgress,
       total_modules: totalModules,
       completed_modules: completedModules,
+      locked_modules_count: lockedModulesCount,
+      next_locked_module_id: nextLockedModuleId,
       total_lessons: totalLessons,
       completed_lessons: completedLessons,
       course_completion_percentage: courseCompletionPercentage,
@@ -481,6 +579,9 @@ export class ProgressService {
         description: module.description,
         order_index: module.order_index,
         is_published: module.is_published,
+        is_unlocked: true,
+        prerequisite_module_id: null,
+        unlocked_at: null,
         lessons: moduleLessons,
         total_lessons: moduleLessons.length,
         completed_lessons: 0, // No student progress
@@ -519,6 +620,8 @@ export class ProgressService {
       assignments: assignmentsWithStructure,
       total_modules: totalModules,
       completed_modules: 0, // No student progress
+      locked_modules_count: 0,
+      next_locked_module_id: null,
       total_lessons: totalLessons,
       completed_lessons: 0, // No student progress
       course_completion_percentage: 0, // No student progress

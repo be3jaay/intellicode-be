@@ -675,6 +675,9 @@ export class AssignmentService {
       throw new ForbiddenException('You are not enrolled in this course');
     }
 
+    // Enforce module-level locking: previous module must be completed
+    await this.ensureModuleUnlockedForStudent(assignment.module, studentId);
+
     // Check if student already submitted
     const existingSubmission = await this.prisma.assignmentSubmission.findFirst({
       where: {
@@ -999,6 +1002,9 @@ export class AssignmentService {
       throw new ForbiddenException('You are not enrolled in this course');
     }
 
+    // Enforce module-level locking: previous module must be completed
+    await this.ensureModuleUnlockedForStudent(assignment.module, studentId);
+
     // Verify assignment is file_upload type
     if (assignment.assignment_subtype !== 'file_upload') {
       throw new BadRequestException(
@@ -1131,6 +1137,9 @@ export class AssignmentService {
     if (assignment.module.course.enrollments.length === 0) {
       throw new ForbiddenException('You are not enrolled in this course');
     }
+
+    // Enforce module-level locking: previous module must be completed
+    await this.ensureModuleUnlockedForStudent(assignment.module, studentId);
 
     // Verify assignment is code_sandbox type
     if (assignment.assignment_subtype !== 'code_sandbox') {
@@ -1739,5 +1748,58 @@ export class AssignmentService {
     });
 
     return this.formatAssignmentResponse(updatedAssignment);
+  }
+
+  /**
+   * Ensures the module is unlocked for the student by checking completion of the previous module.
+   * First module is always considered unlocked.
+   */
+  private async ensureModuleUnlockedForStudent(module: any, studentId: string) {
+    if (!module) {
+      throw new NotFoundException('Module not found');
+    }
+
+    // First module is always unlocked
+    if (module.order_index <= 1) return;
+
+    // Fetch the previous published module with its lessons
+    const previousModule = await this.prisma.module.findFirst({
+      where: {
+        course_id: module.course_id,
+        order_index: module.order_index - 1,
+        is_published: true,
+      },
+      include: {
+        lessons: {
+          where: { is_published: true },
+          orderBy: { order_index: 'asc' },
+        },
+      },
+    });
+
+    if (!previousModule) return; // Nothing to gate against
+    if (previousModule.lessons.length === 0) return; // No lessons to complete; allow
+
+    const previousProgress = await this.prisma.lessonProgress.findMany({
+      where: {
+        student_id: studentId,
+        lesson: {
+          module_id: previousModule.id,
+        },
+      },
+      select: {
+        lesson_id: true,
+        is_completed: true,
+      },
+    });
+
+    const progressMap = new Map(previousProgress.map((p) => [p.lesson_id, p]));
+    const previousModuleComplete = previousModule.lessons.every((lesson) =>
+      progressMap.get(lesson.id)?.is_completed,
+    );
+
+    if (!previousModuleComplete) {
+      throw new ForbiddenException('Previous module must be completed first');
+    }
   }
 }

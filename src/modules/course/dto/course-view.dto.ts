@@ -61,6 +61,15 @@ export class ModuleProgressDto {
   @ApiProperty({ description: 'Is published' })
   is_published: boolean;
 
+  @ApiProperty({ description: 'Is module unlocked for student' })
+  is_unlocked: boolean;
+
+  @ApiProperty({ description: 'Prerequisite module ID', nullable: true })
+  prerequisite_module_id?: string | null;
+
+  @ApiProperty({ description: 'When the module was unlocked', nullable: true })
+  unlocked_at?: Date | null;
+
   @ApiProperty({ description: 'Lessons in this module', type: [LessonProgressDto] })
   lessons: LessonProgressDto[];
 
@@ -147,6 +156,12 @@ export class CourseViewResponseDto {
 
   @ApiProperty({ description: 'Completed modules' })
   completed_modules: number;
+
+  @ApiProperty({ description: 'Locked modules count', required: false })
+  locked_modules_count?: number;
+
+  @ApiProperty({ description: 'Next locked module ID', nullable: true, required: false })
+  next_locked_module_id?: string | null;
 
   @ApiProperty({ description: 'Total lessons in course' })
   total_lessons: number;

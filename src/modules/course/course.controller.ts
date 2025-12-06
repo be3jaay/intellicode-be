@@ -1584,6 +1584,12 @@ export class CourseController {
           nullable: true,
         },
         next_lesson_unlocked: { type: 'boolean', example: true },
+        next_module_id: {
+          type: 'string',
+          example: 'f6a7e8d2-1c3b-4d5f-9a0b-2c4d6e8f1a2b',
+          nullable: true,
+        },
+        next_module_unlocked: { type: 'boolean', example: false },
       },
     },
   })
