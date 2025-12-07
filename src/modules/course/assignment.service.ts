@@ -71,8 +71,33 @@ export class AssignmentService {
     const processedData = this.processAssignmentData(assignmentData, questions);
 
     // Create assignment
+    // Use an explicit createdAt timestamp and compare postLater against it.
+    // If postLater is strictly after createdAt, keep unpublished; otherwise publish immediately.
+    const createdAt = new Date();
+    const publishDate = processedData.postLater ? new Date(processedData.postLater) : null;
+    const isPublished = publishDate ? publishDate.getTime() <= createdAt.getTime() : true;
+
+    // Log publish decision for diagnostics (include createdAt and ms comparison)
+    // eslint-disable-next-line no-console
+    console.log(
+      'Creating assignment - postLater:',
+      processedData.postLater,
+      'publishDate:',
+      publishDate ? publishDate.toISOString() : null,
+      'publishDateMs:',
+      publishDate ? publishDate.getTime() : null,
+      'createdAt:',
+      createdAt.toISOString(),
+      'createdAtMs:',
+      createdAt.getTime(),
+      'timezoneOffsetMinutes:',
+      createdAt.getTimezoneOffset(),
+      'is_published:',
+      isPublished,
+    );
+
     const assignment = await this.prisma.assignment.create({
-      data: {
+      data: ({
         id: uuidv4(),
         module_id: moduleId,
         title: processedData.title,
@@ -82,7 +107,10 @@ export class AssignmentService {
         difficulty: processedData.difficulty,
         points: processedData.points,
         due_date: processedData.dueDate ? new Date(processedData.dueDate) : null,
-        is_published: true,
+        time_limit: processedData.timeLimit ?? null,
+        post_later: publishDate,
+        is_published: isPublished,
+        created_at: createdAt,
         secured_browser: secured_browser,
         starter_code: processedData.starterCode,
         questions: processedData.questions
@@ -102,7 +130,7 @@ export class AssignmentService {
               })),
             }
           : undefined,
-      },
+      }) as any,
       include: {
         questions: {
           orderBy: { order_index: 'asc' },
@@ -193,8 +221,32 @@ export class AssignmentService {
     const processedData = this.processAssignmentData(assignmentData, questions);
 
     // Create assignment
+    // Determine publish state for file-backed create using createdAt
+    const createdAtFile = new Date();
+    const publishDateFile = processedData.postLater ? new Date(processedData.postLater) : null;
+    const isPublishedFile = publishDateFile ? publishDateFile.getTime() <= createdAtFile.getTime() : true;
+
+    // Log publish decision for diagnostics (include createdAt)
+    // eslint-disable-next-line no-console
+    console.log(
+      'Creating assignment with file - postLater:',
+      processedData.postLater,
+      'publishDate:',
+      publishDateFile ? publishDateFile.toISOString() : null,
+      'publishDateMs:',
+      publishDateFile ? publishDateFile.getTime() : null,
+      'createdAt:',
+      createdAtFile.toISOString(),
+      'createdAtMs:',
+      createdAtFile.getTime(),
+      'timezoneOffsetMinutes:',
+      createdAtFile.getTimezoneOffset(),
+      'is_published:',
+      isPublishedFile,
+    );
+
     const assignment = await this.prisma.assignment.create({
-      data: {
+      data: ({
         id: uuidv4(),
         module_id: moduleId,
         title: processedData.title,
@@ -204,7 +256,10 @@ export class AssignmentService {
         difficulty: processedData.difficulty,
         points: processedData.points,
         due_date: processedData.dueDate ? new Date(processedData.dueDate) : null,
-        is_published: true,
+    time_limit: processedData.timeLimit ?? null,
+    post_later: publishDateFile,
+    is_published: isPublishedFile,
+    created_at: createdAtFile,
         secured_browser: secured_browser,
         starter_code: processedData.starterCode,
         questions: processedData.questions
@@ -224,7 +279,7 @@ export class AssignmentService {
               })),
             }
           : undefined,
-      },
+      }) as any,
       include: {
         questions: {
           orderBy: { order_index: 'asc' },
@@ -514,6 +569,9 @@ export class AssignmentService {
     if (secured_browser !== undefined) updateData.secured_browser = secured_browser;
     if (processedData.starterCode !== undefined)
       updateData.starter_code = processedData.starterCode;
+    if (processedData.timeLimit !== undefined) updateData.time_limit = processedData.timeLimit;
+    if (processedData.postLater !== undefined)
+      updateData.post_later = processedData.postLater ? new Date(processedData.postLater) : null;
 
     // Handle questions update separately to avoid foreign key issues
     let assignment;
@@ -643,6 +701,10 @@ export class AssignmentService {
   ): Promise<AssignmentSubmissionResponseDto> {
     UuidValidator.validate(assignmentId, 'assignment ID');
 
+    // Log incoming submission payload for debugging (visibility)
+    // eslint-disable-next-line no-console
+    console.log('submitAssignment payload', { assignmentId, studentId, leave_detection: submissionDto?.leave_detection, answersCount: submissionDto?.answers?.length ?? 0 });
+
     // Check if assignment exists and is published
     const assignment = await this.prisma.assignment.findFirst({
       where: {
@@ -706,8 +768,32 @@ export class AssignmentService {
         student_id: studentId,
         max_score: maxScore,
         status: 'submitted',
+        leave_detection: submissionDto.leave_detection ?? false,
       },
     });
+
+    if ( submissionDto.leave_detection || submissionDto.leave_detection && (!submissionDto.answers || submissionDto.answers.length === 0)) {
+      try {
+
+        const instructorId = assignment.module.course.instructor_id;
+
+        if (instructorId) {
+          const student = await this.prisma.user.findUnique({
+            where: { id: studentId },
+            select: { first_name: true, last_name: true },
+          });
+          const studentName = student ? `${student.first_name} ${student.last_name}` : 'A student';
+          await this.notificationsService.notifyInstructorLeaveDetection(
+            instructorId,
+            assignment.id,
+            studentName,
+            assignment.title,
+          );
+        }
+      } catch (err) {
+        console.error('Failed to send leave-detection notification (no-answers path):', err?.message || err);
+      }
+    }
 
     // Handle quiz answers
     if (submissionDto.answers && submissionDto.answers.length > 0) {
@@ -906,6 +992,39 @@ export class AssignmentService {
         where: { id: submission.id },
         data: { score: totalScore },
       });
+
+      if (submissionDto.leave_detection) {
+        try {
+          // Use console.log so this shows up in typical server logs
+          // eslint-disable-next-line no-console
+          console.log('Leave detection for submission', submission.id, 'student', studentId);
+
+          const instructorId = assignment.module.course.instructor_id;
+
+          if (!instructorId) {
+            // eslint-disable-next-line no-console
+            console.log('No instructor assigned to course', assignment.module.course_id, 'course object:', assignment.module.course);
+          }
+
+          if (instructorId) {
+            const student = await this.prisma.user.findUnique({
+              where: { id: studentId },
+              select: { first_name: true, last_name: true },
+            });
+            const studentName = student ? `${student.first_name} ${student.last_name}` : 'A student';
+            await this.notificationsService.notifyInstructorLeaveDetection(
+              instructorId,
+              assignment.id,
+              studentName,
+              assignment.title,
+            );
+          }
+        } catch (err) {
+          // Don't fail the submission if notification fails; log and continue
+          // eslint-disable-next-line no-console
+          console.error('Failed to send leave-detection notification:', err?.message || err);
+        }
+      }
     }
 
     // Handle file uploads
@@ -1097,9 +1216,7 @@ export class AssignmentService {
     UuidValidator.validate(assignmentId, 'assignment ID');
 
     // Validate that code is provided
-    if (!code || code.trim().length === 0) {
-      throw new BadRequestException('Code cannot be empty');
-    }
+    // Allow empty code submissions intentionally (some instructors accept blank submissions)
 
     // Validate that language is provided
     if (!language || language.trim().length === 0) {
@@ -1548,6 +1665,7 @@ export class AssignmentService {
       description: assignment.description,
       assignmentType: assignment.assignment_type,
       assignmentSubtype: assignment.assignment_subtype,
+      time_limit: assignment.time_limit,
       difficulty: assignment.difficulty,
       points: assignment.points,
       dueDate: assignment.due_date,
@@ -1570,6 +1688,8 @@ export class AssignmentService {
         case_sensitive: showAnswers ? q.case_sensitive : null,
         is_true: showAnswers ? q.is_true : null, // Hide correct answer for true/false
       })),
+      timeLimit: assignment.time_limit,
+      postLater: assignment.post_later,
       starterCode: assignment.starter_code,
       already_submitted: false,
     };
@@ -1588,11 +1708,15 @@ export class AssignmentService {
       files: submission.files,
       submitted_code: submission.submitted_code,
       code_language: submission.code_language,
+      leave_detection: submission.leave_detection,
     };
   }
 
   private processAssignmentData(assignmentData: any, questions: any[]): any {
     const processedData = { ...assignmentData };
+
+    processedData.timeLimit = assignmentData.timeLimit ?? undefined;
+    processedData.postLater = assignmentData.postLater ?? undefined;
 
     switch (assignmentData.assignmentSubtype) {
       case AssignmentSubtype.code_sandbox:

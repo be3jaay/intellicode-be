@@ -7,6 +7,7 @@ import { AdminService } from './admin.service';
 import { FileStorageService } from './file-storage.service';
 import { ModuleService } from './module.service';
 import { AssignmentService } from './assignment.service';
+import { AssignmentSchedulerService } from './assignment-scheduler.service';
 import { ProgressService } from './progress.service';
 import { GradebookService } from './gradebook.service';
 import { CertificateService } from './certificate.service';
@@ -26,6 +27,7 @@ import { NotificationsModule } from '../notifications/notifications.module';
     FileStorageService,
     ModuleService,
     AssignmentService,
+  AssignmentSchedulerService,
     ProgressService,
     GradebookService,
     CertificateService,
@@ -40,6 +42,7 @@ import { NotificationsModule } from '../notifications/notifications.module';
     FileStorageService,
     ModuleService,
     AssignmentService,
+  AssignmentSchedulerService,
     ProgressService,
     GradebookService,
     CertificateService,

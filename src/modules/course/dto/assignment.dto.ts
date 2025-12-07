@@ -137,6 +137,18 @@ export class CreateAssignmentDto {
   @IsDateString()
   dueDate?: string;
 
+  @ApiPropertyOptional({ description: 'Time limit for the assignment in minutes' })
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  @Type(() => Number)
+  timeLimit?: number;
+
+  @ApiPropertyOptional({ description: 'Post later date/time to publish the assignment' })
+  @IsOptional()
+  @IsDateString()
+  postLater?: string;
+
   @ApiPropertyOptional({
     description: 'Whether to use secured browser (auto-enabled for quiz and exam)',
   })
@@ -211,6 +223,18 @@ export class UpdateAssignmentDto {
   @IsDateString()
   dueDate?: string;
 
+  @ApiPropertyOptional({ description: 'Time limit for the assignment in minutes' })
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  @Type(() => Number)
+  timeLimit?: number;
+
+  @ApiPropertyOptional({ description: 'Post later date/time to publish the assignment' })
+  @IsOptional()
+  @IsDateString()
+  postLater?: string;
+
   @ApiPropertyOptional({ description: 'Whether the assignment is published' })
   @IsOptional()
   @IsBoolean()
@@ -243,6 +267,9 @@ export class UpdateAssignmentDto {
 export class AssignmentResponseDto {
   @ApiProperty({ description: 'Assignment ID' })
   id: string;
+
+  @ApiProperty({ description: 'Time Limit' })
+  time_limit: string;
 
   @ApiProperty({ description: 'Assignment title' })
   title: string;
@@ -288,6 +315,12 @@ export class AssignmentResponseDto {
 
   @ApiPropertyOptional({ description: 'Assignment questions', type: [Object] })
   questions?: any[];
+
+  @ApiPropertyOptional({ description: 'Time limit for the assignment in minutes' })
+  timeLimit?: number;
+
+  @ApiPropertyOptional({ description: 'Post later date/time to publish the assignment' })
+  postLater?: Date;
 
   @ApiPropertyOptional({ description: 'Starter code for coding assignments' })
   starterCode?: string;
@@ -402,6 +435,12 @@ export class AssignmentSubmissionDto {
   @IsOptional()
   @IsArray()
   files?: any[];
+
+  @ApiPropertyOptional({ description: 'Whether leave detection triggered (secured browser left)' })
+  @IsOptional()
+  @IsBoolean()
+  @Type(() => Boolean)
+  leave_detection?: boolean;
 }
 
 export class CodeSubmissionDto {
@@ -449,6 +488,9 @@ export class AssignmentSubmissionResponseDto {
 
   @ApiPropertyOptional({ description: 'Submitted files', type: [Object] })
   files?: any[];
+
+  @ApiPropertyOptional({ description: 'Whether leave detection was triggered' })
+  leave_detection?: boolean;
 
   @ApiPropertyOptional({ description: 'Submitted code for code_sandbox assignments' })
   submitted_code?: string;

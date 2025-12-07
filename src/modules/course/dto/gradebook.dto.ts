@@ -141,6 +141,9 @@ export class AssignmentGradeDto {
   @ApiProperty({ description: 'Assignment ID' })
   id: string;
 
+  @ApiProperty({ description: "Leave Detection"})
+  leave_detection: boolean
+
   @ApiProperty({ description: 'Assignment title' })
   title: string;
 

@@ -698,6 +698,33 @@ export class CertificateService {
       referenceCode: dto.referenceCode,
     });
 
+    // Build verification URL (prefer explicit certificateId if provided).
+    // Accept multiple possible property names that may be sent by the frontend
+    // (certificateId preferred, but some clients send `id` or `certificate_id`).
+    const appUrl = (process.env.APP_URL || 'http://localhost:3000').replace(/\/$/, '');
+    const dtoAny = dto as any;
+    const verifyId = dtoAny.certificateId ?? dtoAny.id ?? dtoAny.certificate_id;
+
+    // Only generate a QR linking to the certificate verification URL when an explicit
+    // certificate identifier is provided. Do NOT fall back to the reference code.
+    if (verifyId) {
+      const verifyUrl = `${appUrl}/cert/verify/${verifyId}`;
+      // Try to generate a QR code data URL (PNG). This is non-fatal; if QR fails, continue without it.
+      try {
+        const QRCode = await import('qrcode');
+        // generate a compact PNG data URL; width in pixels ~ 240
+        const qrDataUrl = await QRCode.toDataURL(verifyUrl, { margin: 1, width: 240 });
+        (normalized as any).qrDataUrl = qrDataUrl;
+        (normalized as any).verifyUrl = verifyUrl;
+      } catch (err: any) {
+        console.warn('[PDF] QR code generation failed, continuing without QR:', err?.message || err);
+      }
+    } else {
+      // Ensure we don't accidentally include any stale QR fields
+      (normalized as any).qrDataUrl = undefined;
+      (normalized as any).verifyUrl = undefined;
+    }
+
     console.log(
       '[PDF] Normalized data:',
       JSON.stringify(
@@ -1059,6 +1086,14 @@ export class CertificateService {
                 <div class="cert-footer-right">
                   <div class="cert-footer-value">${d.referenceCode}</div>
                   <div class="cert-footer-label">Certificate Reference</div>
+                  ${d.qrDataUrl ? `
+                    <div style="margin-top:6mm; display:flex; justify-content:flex-end;">
+                      <img src="${d.qrDataUrl}" alt="QR code" style="height:36mm; width:auto; display:block; border-radius:4px;" />
+                    </div>
+                    <div style="margin-top:2mm; display:flex; justify-content:flex-end; font-family: 'Montserrat', sans-serif; font-size:8pt; color:#6b7280;">
+                      <div>Scan to verify</div>
+                    </div>
+                  ` : ''}
                 </div>
               </footer>
             </div>

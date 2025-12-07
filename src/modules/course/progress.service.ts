@@ -463,6 +463,7 @@ export class ProgressService {
           points: assignment.points,
           due_date: assignment.due_date,
           is_published: assignment.is_published,
+          timeLimit: assignment.time_limit,
           is_submitted: !!submission,
           score: submission?.score,
           submitted_at: submission?.submitted_at,

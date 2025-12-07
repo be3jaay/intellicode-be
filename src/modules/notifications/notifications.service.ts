@@ -34,18 +34,37 @@ export class NotificationsService {
       throw new NotFoundException('User not found');
     }
 
-    const notification = await this.prisma.notification.create({
-      data: {
-        id: uuidv4(),
-        user_id: createNotificationDto.user_id,
-        type: createNotificationDto.type,
-        title: createNotificationDto.title,
-        message: createNotificationDto.message,
-        related_id: createNotificationDto.related_id,
-        related_type: createNotificationDto.related_type,
-        is_read: false,
-      },
-    });
+    // Log notification create attempt (use console.log so it's visible in most environments)
+    // eslint-disable-next-line no-console
+    console.log('Creating notification for user', createNotificationDto.user_id, 'type', createNotificationDto.type);
+
+    let notification;
+    try {
+      notification = await this.prisma.notification.create({
+        data: {
+          id: uuidv4(),
+          user_id: createNotificationDto.user_id,
+          type: createNotificationDto.type,
+          title: createNotificationDto.title,
+          message: createNotificationDto.message,
+          related_id: createNotificationDto.related_id,
+          related_type: createNotificationDto.related_type,
+          is_read: false,
+        },
+      });
+
+      // Confirm created
+      // eslint-disable-next-line no-console
+      console.log('Notification created', { id: notification.id, user_id: notification.user_id, type: notification.type });
+    } catch (err) {
+      // Log error with context to help debugging, then rethrow so callers can decide how to handle it
+      // eslint-disable-next-line no-console
+      console.error('Failed to create notification', {
+        error: err?.message || err,
+        payload: createNotificationDto,
+      });
+      throw err;
+    }
 
     return this.formatNotificationResponse(notification);
   }
@@ -303,6 +322,37 @@ export class NotificationsService {
     }));
 
     await this.createBulkNotifications(notifications);
+  }
+
+  // Notify the instructor that a student was detected leaving the secured browser
+  async notifyInstructorLeaveDetection(
+    instructorId: string,
+    assignmentId: string,
+    studentName: string,
+    assignmentTitle?: string,
+  ): Promise<void> {
+    if (!instructorId) return;
+
+    const title = 'Student left secured assignment';
+    const message = assignmentTitle
+      ? `${studentName} was detected leaving the secured browser during assignment "${assignmentTitle}".`
+      : `${studentName} was detected leaving the secured browser during an assignment.`;
+
+    // NOTE: schema was updated to include `student_left_assignment`.
+    // If your local @prisma/client is not yet regenerated this will fall back to `general`.
+    const notifType = (NotificationType as any).student_left_assignment || NotificationType.general;
+
+    // eslint-disable-next-line no-console
+    console.log('Notify instructor leave detection', { instructorId, assignmentId, notifType, studentName });
+
+    await this.createNotification({
+      user_id: instructorId,
+      type: notifType,
+      title,
+      message,
+      related_id: assignmentId,
+      related_type: NotificationRelatedType.assignment,
+    });
   }
 
   private formatNotificationResponse(notification: any): NotificationResponseDto {

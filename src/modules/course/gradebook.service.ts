@@ -392,6 +392,7 @@ export class GradebookService {
         status: submission ? submission.status : 'not_submitted',
         is_late: isLate || false,
         is_published: assignment.is_published,
+        leave_detection: submission?.leave_detection ?? false
       };
     });
   }

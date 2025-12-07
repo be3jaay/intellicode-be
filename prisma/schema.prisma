@@ -352,6 +352,8 @@ model Assignment {
   difficulty    DifficultyLevel  @default(easy)
   points        Int              @default(0)
   due_date      DateTime?
+  time_limit    Int?
+  post_later    DateTime?
   is_published  Boolean          @default(false)
   secured_browser Boolean        @default(false)
   starter_code  String?
@@ -403,6 +405,7 @@ model AssignmentSubmission {
   student_id   String           @db.Uuid
   score        Int              @default(0)
   max_score    Int
+  leave_detection Boolean        @default(false)
   submitted_code String?
   code_language String?
   submitted_at DateTime         @default(now())
@@ -500,6 +503,7 @@ enum NotificationType {
   assignment_graded
   enrollment_status_changed
   general
+  student_left_assignment
 }
 
 enum NotificationRelatedType {

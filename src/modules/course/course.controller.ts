@@ -125,6 +125,7 @@ import {
   EligibleStudentsResponseDto,
 } from './dto/certificate.dto';
 import { GenerateCertificateDto } from './dto/generate-certificate.dto';
+import { Public } from '@/common/decorators/public.decorator';
 import { StudentAnalyticsService } from './student-analytics.service';
 import { StudentDashboardAnalyticsDto } from './dto/student-analytics.dto';
 import { AdminAnalyticsService } from './admin-analytics.service';
@@ -1922,6 +1923,33 @@ export class CourseController {
     res.setHeader('content-disposition', `attachment; filename="${fileName}"`);
     res.setHeader('cache-control', 'no-store');
     return res.status(200).send(Buffer.from(buffer));
+  }
+
+  // Public certificate verification endpoint
+  @Public()
+  @Get('certificates/verify/:certificateId')
+  @ApiOperation({ summary: 'Verify a certificate by its ID (public)' })
+  @ApiParam({ name: 'certificateId', description: 'Certificate ID' })
+  @ApiResponse({ status: HttpStatus.OK, description: 'Certificate verification result' })
+  @ApiResponse({ status: HttpStatus.NOT_FOUND, description: 'Certificate not found' })
+  async verifyCertificate(@Param('certificateId') certificateId: string) {
+    const cert = await this.certificateService.getCertificateById(certificateId);
+
+    // Simple verification result: valid if status is 'active' and not revoked
+    const is_valid = cert.status === 'active' && !cert.revoked_at;
+
+    return {
+      is_valid,
+      certificate_id: cert.id,
+      status: cert.status,
+      issued_at: cert.issued_at,
+      course_id: cert.course_id,
+      course_title: cert.course?.title,
+      student_id: cert.student_id,
+      student_name: cert.student ? `${cert.student.first_name} ${cert.student.last_name}` : undefined,
+      revoked_at: cert.revoked_at,
+      details: cert,
+    };
   }
 
   @Get('analytics/student-dashboard')
