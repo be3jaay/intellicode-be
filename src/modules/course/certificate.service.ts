@@ -701,14 +701,13 @@ export class CertificateService {
     // Build verification URL (prefer explicit certificateId if provided).
     // Accept multiple possible property names that may be sent by the frontend
     // (certificateId preferred, but some clients send `id` or `certificate_id`).
-    const appUrl = (process.env.APP_URL || 'http://localhost:3000').replace(/\/$/, '');
     const dtoAny = dto as any;
     const verifyId = dtoAny.certificateId ?? dtoAny.id ?? dtoAny.certificate_id;
 
     // Only generate a QR linking to the certificate verification URL when an explicit
     // certificate identifier is provided. Do NOT fall back to the reference code.
     if (verifyId) {
-      const verifyUrl = `${appUrl}/cert/verify/${verifyId}`;
+      const verifyUrl = `${process.env.APP_URL}/cert/verify/${verifyId}`;
       // Try to generate a QR code data URL (PNG). This is non-fatal; if QR fails, continue without it.
       try {
         const QRCode = await import('qrcode');
