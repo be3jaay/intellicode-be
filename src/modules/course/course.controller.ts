@@ -154,6 +154,21 @@ export class CourseController {
     private readonly adminAnalyticsService: AdminAnalyticsService,
   ) {}
 
+  /**
+   * Regenerate and update the course invitation link for a given course ID
+   * Only teachers can access this endpoint
+   */
+  @Roles('teacher')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @ApiBearerAuth('JWT-auth')
+  @Patch(':id/regenerate-invite')
+  @ApiOperation({ summary: 'Regenerate course invitation link' })
+  @ApiParam({ name: 'id', description: 'Course ID' })
+  @ApiResponse({ status: HttpStatus.OK, description: 'Course invitation link regenerated' })
+  @ApiResponse({ status: HttpStatus.NOT_FOUND, description: 'Course not found' })
+  async regenerateCourseInviteCode(@Param('id') id: string) {
+    return await this.courseService.regenerateCourseInviteCode(id);
+  }
   @Roles('teacher')
   @UseGuards(JwtAuthGuard, RolesGuard)
   @ApiBearerAuth('JWT-auth')

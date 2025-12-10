@@ -37,6 +37,41 @@ export class CourseService {
     );
   }
 
+  /**
+   * Regenerates and updates the course invitation link for a given course ID.
+   * Throws NotFoundException if course does not exist.
+   * @param courseId string
+   * @returns updated course object with new invite code
+   */
+  async regenerateCourseInviteCode(courseId: string) {
+    UuidValidator.validate(courseId, 'course ID');
+    const course = await this.prisma.course.findUnique({ where: { id: courseId } });
+    if (!course) {
+      throw new NotFoundException(`Course with ID ${courseId} not found`);
+    }
+    const newInviteCode = this.generateCourseInviteCode();
+    const updatedCourse = await this.prisma.course.update({
+      where: { id: courseId },
+      data: { course_invite_code: newInviteCode },
+      include: {
+        instructor: {
+          select: {
+            id: true,
+            first_name: true,
+            last_name: true,
+            email: true,
+          },
+        },
+      },
+    });
+    return {
+      message: 'Course invitation link regenerated successfully',
+      course_id: updatedCourse.id,
+      course_title: updatedCourse.title,
+      new_invite_code: updatedCourse.course_invite_code,
+    };
+  }
+
   async createCourse(
     createCourseDto: CreateCourseDto | CreateCourseWithFileDto,
     instructorId: string,
