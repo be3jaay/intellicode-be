@@ -449,12 +449,14 @@ export class ProgressService {
       };
     });
 
-    // Process assignments
     const assignmentsWithProgress = course.modules.flatMap((module) =>
       module.assignments.map((assignment) => {
         const submission = submissionMap.get(assignment.id);
         return {
           id: assignment.id,
+          module_id: module.id,
+          module_number: module.order_index,
+          module_title: module.title,
           title: assignment.title,
           description: assignment.description,
           assignment_type: assignment.assignment_type,
