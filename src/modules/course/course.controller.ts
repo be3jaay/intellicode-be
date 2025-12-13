@@ -1953,18 +1953,34 @@ export class CourseController {
     // Simple verification result: valid if status is 'active' and not revoked
     const is_valid = cert.status === 'active' && !cert.revoked_at;
 
+    // Build reference code locally using issued date and student number
+    const reference_code = this.buildReferenceCode(cert.issued_at, cert.student?.student_number);
+
     return {
       is_valid,
       certificate_id: cert.id,
       status: cert.status,
       issued_at: cert.issued_at,
+      reference_code,
       course_id: cert.course_id,
       course_title: cert.course?.title,
       student_id: cert.student_id,
       student_name: cert.student ? `${cert.student.first_name} ${cert.student.last_name}` : undefined,
       revoked_at: cert.revoked_at,
+      revocation_reason: cert.revocation_reason,
       details: cert,
     };
+  }
+
+  private buildReferenceCode(issuedAt: Date | string | null, studentNumber?: string) {
+    const issuedDate = issuedAt ? new Date(issuedAt) : new Date();
+    const year = issuedDate.getFullYear();
+
+    const normalizedStudentNumber = (studentNumber ?? '').replace(/[^a-zA-Z0-9]/g, '');
+    const last5 = normalizedStudentNumber.slice(-5).toUpperCase();
+    const padded = last5.padStart(5, '0');
+
+    return `REF-${year}-${padded}`;
   }
 
   @Get('analytics/student-dashboard')
