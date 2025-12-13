@@ -569,9 +569,13 @@ export class AssignmentService {
     if (secured_browser !== undefined) updateData.secured_browser = secured_browser;
     if (processedData.starterCode !== undefined)
       updateData.starter_code = processedData.starterCode;
-    if (processedData.timeLimit !== undefined) updateData.time_limit = processedData.timeLimit;
-    if (processedData.postLater !== undefined)
-      updateData.post_later = processedData.postLater ? new Date(processedData.postLater) : null;
+    // Ensure timeLimit and postLater are updatable, including setting to null
+    if ('timeLimit' in processedData) {
+      updateData.time_limit = processedData.timeLimit === null ? null : processedData.timeLimit;
+    }
+    if ('postLater' in processedData) {
+      updateData.post_later = processedData.postLater === null ? null : (processedData.postLater ? new Date(processedData.postLater) : null);
+    }
 
     // Handle questions update separately to avoid foreign key issues
     let assignment;
@@ -648,7 +652,8 @@ export class AssignmentService {
       );
     }
 
-    return this.formatAssignmentResponse(assignment);
+  // Document for frontend: postLater and timeLimit are now updatable fields
+  return this.formatAssignmentResponse(assignment);
   }
 
   async deleteAssignment(assignmentId: string, instructorId: string): Promise<void> {
