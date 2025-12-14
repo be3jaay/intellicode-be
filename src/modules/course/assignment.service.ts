@@ -333,6 +333,121 @@ export class AssignmentService {
     return this.formatAssignmentResponse(assignment);
   }
 
+  async getCourseAssignments(
+    courseId: string,
+    query: AssignmentQueryDto,
+    userId?: string,
+  ): Promise<PaginatedAssignmentsResponseDto> {
+    UuidValidator.validate(courseId, 'course ID');
+
+    // Check if user has access to the course and determine if they are the instructor
+    let isInstructor = false;
+    if (userId) {
+      const course = await this.prisma.course.findFirst({
+        where: {
+          id: courseId,
+          OR: [
+            { instructor_id: userId },
+            { enrollments: { some: { student_id: userId, status: 'active' } } },
+          ],
+        },
+        select: {
+          instructor_id: true,
+        },
+      });
+
+      if (!course) {
+        throw new NotFoundException('Course not found or you do not have access to it');
+      }
+
+      isInstructor = course.instructor_id === userId;
+    }
+
+    const {
+      offset = 0,
+      limit = 10,
+      assignment_type,
+      assignment_subtype,
+      difficulty,
+      is_published,
+      secured_browser,
+      search,
+    } = query;
+
+    const where: any = {
+      module: {
+        course_id: courseId,
+      },
+    };
+
+    if (assignment_type) {
+      where.assignment_type = assignment_type;
+    }
+
+    if (assignment_subtype) {
+      where.assignment_subtype = assignment_subtype;
+    }
+
+    if (difficulty) {
+      where.difficulty = difficulty;
+    }
+
+    if (is_published !== undefined) {
+      where.is_published = is_published;
+    }
+
+    if (secured_browser !== undefined) {
+      where.secured_browser = secured_browser;
+    }
+
+    if (search) {
+      where.title = {
+        contains: search,
+        mode: 'insensitive',
+      };
+    }
+
+    const total = await this.prisma.assignment.count({ where });
+
+    const assignments = await this.prisma.assignment.findMany({
+      where,
+      skip: offset,
+      take: limit,
+      include: {
+        questions: {
+          orderBy: { order_index: 'asc' },
+        },
+        attachments: {
+          where: {
+            submission_id: null, // Only get instructor-uploaded files, not student submissions
+          },
+        },
+        module: {
+          select: {
+            id: true,
+            title: true,
+          },
+        },
+      },
+      orderBy: { created_at: 'desc' },
+    });
+
+    const totalPages = Math.ceil(total / limit);
+    const currentPage = Math.floor(offset / limit) + 1;
+
+    return {
+      data: assignments.map((assignment) => ({
+        ...this.formatAssignmentResponse(assignment, isInstructor),
+        module_title: assignment.module.title,
+      })),
+      total,
+      offset,
+      limit,
+      totalPages,
+      currentPage,
+    };
+  }
+
   async getModuleAssignments(
     moduleId: string,
     query: AssignmentQueryDto,

@@ -957,6 +957,63 @@ export class CourseController {
   }
 
   // Assignment endpoints
+  @Get(':courseId/assignments')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('teacher', 'student')
+  @ApiBearerAuth('JWT-auth')
+  @ApiOperation({ summary: 'Get all assignments for a course across all modules' })
+  @ApiParam({ name: 'courseId', description: 'Course ID' })
+  @ApiQuery({
+    name: 'offset',
+    required: false,
+    type: Number,
+    description: 'Number of records to skip',
+  })
+  @ApiQuery({
+    name: 'limit',
+    required: false,
+    type: Number,
+    description: 'Number of records to take',
+  })
+  @ApiQuery({
+    name: 'assignment_type',
+    required: false,
+    enum: ['assignment', 'activity', 'exam'],
+    description: 'Filter by assignment type',
+  })
+  @ApiQuery({
+    name: 'assignment_subtype',
+    required: false,
+    enum: ['multiple_choice', 'short_answer', 'essay', 'true_false', 'coding', 'file_upload'],
+    description: 'Filter by assignment subtype',
+  })
+  @ApiQuery({
+    name: 'difficulty',
+    required: false,
+    enum: ['easy', 'medium', 'hard'],
+    description: 'Filter by difficulty level',
+  })
+  @ApiQuery({
+    name: 'is_published',
+    required: false,
+    type: Boolean,
+    description: 'Filter by published status',
+  })
+  @ApiQuery({ name: 'search', required: false, type: String, description: 'Search by title' })
+  @ApiResponse({
+    status: HttpStatus.OK,
+    description: 'Assignments retrieved successfully',
+    type: PaginatedAssignmentsResponseDto,
+  })
+  @ApiResponse({ status: HttpStatus.NOT_FOUND, description: 'Course not found' })
+  async getCourseAssignments(
+    @Param('courseId') courseId: string,
+    @Query() query: AssignmentQueryDto,
+    @CurrentUser() user: RequestUser,
+  ) {
+    return await this.assignmentService.getCourseAssignments(courseId, query, user.id);
+  }
+
   @Post('modules/:moduleId/assignments')
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles('teacher')
